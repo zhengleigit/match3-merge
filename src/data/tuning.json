@@ -1,0 +1,51 @@
+{
+  "_comment": "All gameplay tunables live here. Core rules must not hardcode numbers.",
+
+  "board": {
+    "width": 7,
+    "height": 10
+  },
+
+  "buffer": {
+    "slots": 3,
+    "initiallyEmpty": true
+  },
+
+  "next": {
+    "preSeedAtStart": true
+  },
+
+  "unlock": {
+    "_comment": "strategy=byMaxReachedLevel: a level enters the spawn pool only after the player has created it by merging. spawnWeights[n-1] is the relative weight of level n; the table is truncated to maxReachedLevel and re-normalised.",
+    "strategy": "byMaxReachedLevel",
+    "_spawnWeightsComment": "Relative weight of level 1..N. The tail is deliberately thin: once a level unlocks it must stay a treat, not become a common draw. Raise the later entries if high levels feel too rare in playtesting.",
+    "spawnWeights": [70, 20, 8, 3, 2, 2, 2, 1, 1, 1],
+    "stepUnlockFallback": {
+      "_comment": "Optional accelerator if playtesting shows the mid-game drags. Disabled by default.",
+      "enabled": false,
+      "stepsPerLevel": 10
+    }
+  },
+
+  "cascade": {
+    "_comment": "Auto chain merges until the board is stable.",
+    "enabled": true
+  },
+
+  "obstacles": {
+    "spawnEverySteps": 3,
+    "clearBonus": 1
+  },
+
+  "history": {
+    "limit": 200
+  },
+
+  "theme": {
+    "defaultId": "default"
+  },
+
+  "fx": {
+    "particleDensity": "medium"
+  }
+}

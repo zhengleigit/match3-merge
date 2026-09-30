@@ -1,0 +1,122 @@
+{
+  "_comment": "Web Audio synthesis presets. Every sound is generated at runtime, so the game makes noise with zero audio assets. A theme can override any id with a real file via its sfx.* slot; a missing file falls back to these presets.",
+
+  "master": {
+    "maxVoices": 8,
+    "retriggerWindowMs": 45,
+    "retriggerGainFalloff": 0.55
+  },
+
+  "chain": {
+    "_comment": "Pitch escalation for chained merges: each chain step rises by this many semitones, delayed so the run reads as a musical ladder.",
+    "semitonePerChain": 2,
+    "delayMs": 60,
+    "maxSteps": 6
+  },
+
+  "sounds": {
+    "pick": {
+      "wave": "sine",
+      "freq": 520,
+      "durationMs": 55,
+      "attackMs": 3,
+      "gain": 0.16,
+      "sweepTo": 1.0,
+      "noise": false
+    },
+    "spawn": {
+      "wave": "sine",
+      "freq": 660,
+      "durationMs": 45,
+      "attackMs": 2,
+      "gain": 0.1,
+      "sweepTo": 1.1,
+      "noise": false
+    },
+    "place": {
+      "wave": "triangle",
+      "freq": 300,
+      "durationMs": 80,
+      "attackMs": 2,
+      "gain": 0.26,
+      "sweepTo": 0.8,
+      "noise": false
+    },
+    "merge": {
+      "wave": "triangle",
+      "freq": 420,
+      "durationMs": 150,
+      "attackMs": 3,
+      "gain": 0.3,
+      "sweepTo": 1.6,
+      "noise": false
+    },
+    "maxClear": {
+      "wave": "sawtooth",
+      "freq": 210,
+      "durationMs": 430,
+      "attackMs": 5,
+      "gain": 0.34,
+      "sweepTo": 3.2,
+      "noise": true,
+      "noiseGain": 0.18
+    },
+    "obstacleSpawn": {
+      "wave": "square",
+      "freq": 108,
+      "durationMs": 170,
+      "attackMs": 4,
+      "gain": 0.2,
+      "sweepTo": 0.85,
+      "noise": false
+    },
+    "obstacleBreak": {
+      "wave": "square",
+      "freq": 880,
+      "durationMs": 130,
+      "attackMs": 1,
+      "gain": 0.2,
+      "sweepTo": 0.6,
+      "noise": true,
+      "noiseGain": 0.22
+    },
+    "invalid": {
+      "wave": "square",
+      "freq": 150,
+      "durationMs": 95,
+      "attackMs": 2,
+      "gain": 0.18,
+      "sweepTo": 0.7,
+      "noise": false
+    },
+    "undo": {
+      "wave": "sine",
+      "freq": 540,
+      "durationMs": 130,
+      "attackMs": 2,
+      "gain": 0.2,
+      "sweepTo": 0.55,
+      "noise": false
+    },
+    "win": {
+      "wave": "triangle",
+      "freq": 523,
+      "durationMs": 760,
+      "attackMs": 6,
+      "gain": 0.3,
+      "sweepTo": 1.0,
+      "noise": false,
+      "arpeggio": [0, 4, 7, 12, 16]
+    },
+    "gameOver": {
+      "wave": "sine",
+      "freq": 320,
+      "durationMs": 620,
+      "attackMs": 8,
+      "gain": 0.26,
+      "sweepTo": 0.4,
+      "noise": false,
+      "arpeggio": [0, -3, -7]
+    }
+  }
+}

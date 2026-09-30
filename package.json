@@ -1,0 +1,23 @@
+{
+  "name": "match3-merge",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "三消合成网页游戏 — 7x10 棋盘 / 暂存区 / 连锁合成 / 三种模式",
+  "scripts": {
+    "dev": "vite --port 4173 --strictPort",
+    "dev:lan": "vite --host 0.0.0.0 --port 4173 --strictPort",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 4173 --strictPort",
+    "preview:lan": "vite preview --host 0.0.0.0 --port 4173 --strictPort",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1",
+    "vitest": "^5.0.3"
+  }
+}

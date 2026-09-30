@@ -1,0 +1,33 @@
+{
+  "_comment": "Three parallel modes. scoreByLevel[n-1] = score of one level-n block. maxLevelBonus is paid when a max-level group is consumed; the merged block is NOT recreated. winAtLevel is a LEVEL NUMBER (endless: 10 = the 89-point block).",
+
+  "modes": [
+    {
+      "id": "basic",
+      "name": "老年模式",
+      "description": "5 级封顶。凑满 3 个 5 级方块可整团清场并额外 +50 分。",
+      "scoreByLevel": [1, 2, 3, 5, 8],
+      "maxLevelBonus": 50,
+      "obstacles": false,
+      "winAtLevel": null
+    },
+    {
+      "id": "obstacle",
+      "name": "障碍模式",
+      "description": "每 {obstacleEvery} 步在随机空格生成障碍物，障碍可被相邻合成波及清除（+1 分）。规则同基础模式。",
+      "scoreByLevel": [1, 2, 3, 5, 8],
+      "maxLevelBonus": 50,
+      "obstacles": true,
+      "winAtLevel": null
+    },
+    {
+      "id": "endless",
+      "name": "无尽模式",
+      "description": "10 级分值链。合成到 89 分方块即胜利，可选择继续挑战。",
+      "scoreByLevel": [1, 2, 3, 5, 8, 13, 21, 34, 55, 89],
+      "maxLevelBonus": 0,
+      "obstacles": false,
+      "winAtLevel": 10
+    }
+  ]
+}

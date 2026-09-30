@@ -1,0 +1,10 @@
+{
+  "_comment": "The default theme supplies no assets: every element is drawn procedurally by the renderer. This is what guarantees the game is playable with zero art, and it is the fallback whenever an image is missing.",
+
+  "id": "default",
+  "name": "默认（程序化绘制）",
+  "blockScale": 1,
+  "padding": 0.08,
+
+  "slots": {}
+}

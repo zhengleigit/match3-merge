@@ -1,0 +1,35 @@
+{
+  "_comment": "Example theme: proves the theme pipeline end to end. Every slot here is optional — delete a line and that element falls back to procedural drawing. Paths are relative to this file's directory.",
+
+  "id": "example",
+  "name": "示例素材（SVG）",
+  "blockScale": 1,
+  "padding": 0.06,
+
+  "slots": {
+    "page.background": "page-bg.svg",
+    "home.background": "home-bg.svg",
+    "board.background": "board-bg.svg",
+    "obstacle": "obstacle.svg",
+
+    "slot.buffer": "slot-buffer.svg",
+    "slot.next": "slot-next.svg",
+    "slot.cellFrame": "cell-frame.svg",
+    "slot.highlight": "highlight.svg",
+
+    "block.level1": "blocks/level1.svg",
+    "block.level2": "blocks/level2.svg",
+    "block.level3": "blocks/level3.svg",
+    "block.level4": "blocks/level4.svg",
+    "block.level5": "blocks/level5.svg",
+    "block.level6": "blocks/level6.svg",
+    "block.level7": "blocks/level7.svg",
+    "block.level8": "blocks/level8.svg",
+    "block.level9": "blocks/level9.svg",
+    "block.level10": "blocks/level10.svg",
+
+    "sfx.merge": "audio/merge.wav",
+    "sfx.maxClear": "audio/maxClear.wav",
+    "sfx.win": "audio/win.wav"
+  }
+}

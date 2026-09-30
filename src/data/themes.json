@@ -1,0 +1,18 @@
+{
+  "_comment": "Theme registry. `dir` is a RELATIVE path (no leading slash) so the built dist/ keeps working when loaded from file:// inside Electron / Tauri / Capacitor. Slot images are resolved as <dir>/<slotPath>.",
+
+  "themes": [
+    {
+      "id": "default",
+      "name": "默认（程序化绘制）",
+      "dir": "themes/default",
+      "description": "不含任何图片素材，全部由代码绘制。零资源依赖，永不缺图。"
+    },
+    {
+      "id": "example",
+      "name": "示例素材（SVG）",
+      "dir": "themes/example",
+      "description": "演示如何用图片替换方块、背景、障碍与槽位。参照 public/themes/README.md 替换成你自己的素材。"
+    }
+  ]
+}

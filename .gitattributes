@@ -1,0 +1,24 @@
+# Normalise line endings in the repository.
+#
+# Without this, Git on Windows checks every text file out with CRLF and then
+# reports the whole tree as modified the next time it touches them — which
+# makes real changes impossible to spot in a diff. This is why `git add`
+# printed dozens of "LF will be replaced by CRLF" warnings.
+* text=auto eol=lf
+
+# Binary assets must never be normalised: a stray CRLF would corrupt them.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.zip binary
+*.wav binary
+*.mp3 binary
+*.ogg binary
+*.ttf binary
+*.woff2 binary
+
+# Generated files: exclude from diffs and from language statistics.
+dist/ linguist-generated=true
+package-lock.json linguist-generated=true -diff

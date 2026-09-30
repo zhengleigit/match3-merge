@@ -1,0 +1,103 @@
+{
+  "_comment": "Particle / shake presets. Counts are BASE values, scaled by fx.densityMultipliers[density]. Coordinates in descriptors are board-cell space (float), and the renderer converts them to pixels.",
+
+  "maxParticles": 512,
+
+  "densityMultipliers": {
+    "low": 0.5,
+    "medium": 1.0,
+    "high": 1.6
+  },
+
+  "levelHues": [200, 168, 48, 18, 288, 262, 196, 128, 62, 332],
+
+  "shake": {
+    "maxOffsetPx": 9,
+    "maxDurationMs": 420
+  },
+
+  "events": {
+    "placed": {
+      "count": 7,
+      "speed": [24, 78],
+      "lifeMs": [180, 340],
+      "size": [2, 4],
+      "gravity": 320,
+      "ring": false,
+      "additive": false,
+      "shake": [0, 0]
+    },
+    "merged": {
+      "count": 12,
+      "countPerLevel": 4,
+      "speed": [60, 210],
+      "lifeMs": [260, 520],
+      "size": [2, 5],
+      "gravity": 180,
+      "ring": true,
+      "ringFromLevel": 3,
+      "additive": true,
+      "shake": [0.12, 90]
+    },
+    "maxCleared": {
+      "count": 90,
+      "speed": [110, 380],
+      "lifeMs": [420, 900],
+      "size": [3, 8],
+      "gravity": 140,
+      "ring": true,
+      "additive": true,
+      "shake": [1, 340]
+    },
+    "obstacleSpawned": {
+      "count": 14,
+      "speed": [30, 110],
+      "lifeMs": [300, 620],
+      "size": [2, 5],
+      "gravity": -40,
+      "ring": false,
+      "additive": false,
+      "shake": [0.08, 70]
+    },
+    "obstacleCleared": {
+      "count": 18,
+      "speed": [70, 240],
+      "lifeMs": [240, 560],
+      "size": [2, 6],
+      "gravity": 420,
+      "ring": false,
+      "additive": false,
+      "shake": [0.1, 80]
+    },
+    "undo": {
+      "count": 12,
+      "speed": [40, 130],
+      "lifeMs": [220, 420],
+      "size": [2, 4],
+      "gravity": -120,
+      "ring": false,
+      "additive": true,
+      "shake": [0.05, 60]
+    },
+    "win": {
+      "count": 160,
+      "speed": [90, 420],
+      "lifeMs": [700, 1500],
+      "size": [3, 9],
+      "gravity": 260,
+      "ring": true,
+      "additive": true,
+      "shake": [1, 420]
+    },
+    "invalid": {
+      "count": 0,
+      "speed": [0, 0],
+      "lifeMs": [0, 0],
+      "size": [0, 0],
+      "gravity": 0,
+      "ring": false,
+      "additive": false,
+      "shake": [0, 0]
+    }
+  }
+}
