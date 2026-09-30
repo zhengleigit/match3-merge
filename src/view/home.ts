@@ -395,7 +395,11 @@ export class HomeScreen {
       if (event.target === overlay) this.closeDialog()
     })
     this.dialog = overlay
-    this.root.append(overlay)
+    // Deliberately appended to <body>, not to this.root: render() calls
+    // replaceChildren() on the root, and a dialog living inside it was being
+    // torn down by any re-render — including ones triggered asynchronously by
+    // a theme finishing its image loads.
+    document.body.append(overlay)
   }
 
   /** Host element for the shared settings panel, rendered by Hud. */
@@ -411,6 +415,7 @@ export class HomeScreen {
 
     overlay.append(container)
     this.dialog = overlay
-    this.root.append(overlay)
+    // See the note in showResumeChooser: body, not root.
+    document.body.append(overlay)
   }
 }

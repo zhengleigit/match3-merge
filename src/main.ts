@@ -545,11 +545,11 @@ function applySettings(patch: Partial<Omit<Settings, 'version'>>): void {
   // NOT fall through to the in-game panel, which would stack the HUD's dialog
   // on top of the home screen.
   //
-  // Its own settings dialog lives *inside* the home root, so re-rendering the
-  // menu tears the dialog down with it; re-open it afterwards if it was up.
-  const keepDialog = home.isDialogOpen()
+  // It is safe to re-render while its settings panel is open: home dialogs are
+  // attached to <body>, not to the home root, so replaceChildren() cannot take
+  // them down. (They used to live inside the root, and any re-render — including
+  // the async one that fires when a theme finishes loading — closed the panel.)
   home.refresh(homeState())
-  if (keepDialog) openSettingsDialog()
 }
 
 /** Parks the current run (if it is still in progress) and shows the home screen. */

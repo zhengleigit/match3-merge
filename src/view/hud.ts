@@ -65,7 +65,7 @@ function injectStyles(): void {
 .hud button.primary { background: #4f5fd7; border-color: #6d7bff; }
 .hud button.primary:hover { background: #5f6ee6; }
 .hud__icon { padding: 8px 11px; }
-.hud__dialog { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(6,8,16,.72); pointer-events: auto; backdrop-filter: blur(3px); padding: 14px; overflow-y: auto; }
+.hud__dialog { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(6,8,16,.72); pointer-events: auto; backdrop-filter: blur(3px); padding: 14px; overflow-y: auto; font: 400 14px/1.5 system-ui, "Microsoft YaHei", sans-serif; color: #e8ecf5; }
 .hud__panel { background: #171c2e; border: 1px solid rgba(255,255,255,.12); border-radius: 16px; padding: 20px; width: min(400px, 100%); max-height: calc(100dvh - 28px); overflow-y: auto; box-shadow: 0 18px 50px rgba(0,0,0,.5); }
 /* The mode picker is short by design (names only), so it must never scroll. */
 .hud__panel--compact { max-height: none; overflow: visible; width: min(340px, 100%); }

@@ -203,12 +203,16 @@
 ```bash
 npm install
 
-npm run dev        # 开发服务器，带热更新
-npm run test       # 单元测试（vitest，132 个用例）
+npm run dev        # 开发服务器（固定 4173 端口，带热更新）
+npm run test       # 单元测试（vitest，270 个用例）
 npm run typecheck  # tsc --noEmit（strict）
 npm run build      # 类型检查 + 生产构建 → dist/
-npm run preview    # 本地预览 dist/
+npm run preview    # 本地预览 dist/（固定 4173 端口）
 ```
+
+四个启服务的脚本都加了 `--strictPort`：端口被占用时**直接报错退出**，
+而不会自动跳到 4174、4175……避免攒出一堆僵尸服务器，也避免测试者访问到旧版本。
+`dev:lan` / `preview:lan` 额外绑 `0.0.0.0`，局域网其他设备可访问。
 
 ### 架构
 
@@ -313,6 +317,53 @@ zip 包内的结构就是文件夹主题的结构（`theme.json` 在压缩包根
 
 - 自动尊重 `prefers-reduced-motion: reduce`：关闭粒子与屏幕震动（音效保留）。
 - 粒子密度可手动调低（甚至视觉上更轻），设置项持久化。
+
+---
+
+## 部署到公网（GitHub Pages）
+
+线上地址：**<https://zhengleigit.github.io/match3-merge/>**
+
+仓库里**没有提交 `dist/`**（`.gitignore` 把它排除了），所以 Pages 无法直接提供这个目录。
+改为由 GitHub Actions 在云端构建：`.github/workflows/deploy.yml` 会 `npm ci` →
+跑测试 → `npm run build` → 把 `dist/` 发布成 Pages 站点。
+
+**这意味着改完代码只需要 push，不用手动 build、也不用拷文件：**
+
+```bash
+git add -A && git commit -m "说明" && git push
+```
+
+等 Actions 跑完（约 1 分钟），线上自动更新。每次部署的网址不变。
+
+几个关键点：
+
+- 构建产物放在 `/<仓库名>/` 子路径下（即 `/match3-merge/`）。
+  因为 Vite 的 `base` 是 `'./'`、主题 zip 也是用 `new URL(..., import.meta.url)` 定位的，
+  全部走相对路径，所以**子路径天然可用，不需要改 `base`**。
+- 工作流里跑了 `npm test`，**测试不过就不会发布**——避免把坏版本推给测试者。
+- Pages 的 Source 必须是 **GitHub Actions**（仓库 Settings → Pages）。
+  如果选了 “Deploy from a branch”，页面会直接 404，因为仓库里根本没有 `dist/`。
+- 首次部署后如果打不开，等一两分钟：Pages 第一次发布需要生成证书。
+
+### 用手机流量自检（30 秒）
+
+关掉 WiFi、用手机流量打开线上地址，确认公网真的可达。然后看两处：
+
+| 检查 | 预期 | 不对说明 |
+|---|---|---|
+| 主页能出、方块能拖 | 正常玩 | JS/CSS 没传上 |
+| ⚙ 设置 → 主题 | **4 项**：默认 / 示例素材 / neon / paper | `assets/*.zip` 缺失 |
+| 选「示例素材（SVG）」 | 方块变多边形图案 | `themes/` 缺失 |
+
+后两项是这个项目的「上传完整性探针」。因为**资源缺失时不会白屏，只会静默回退成程序化绘制**，
+不主动检查很容易以为部署成功了、实际少了一半资源。控制台也会打一条 `[theme]` 警告。
+
+### 换版本后测试者看到旧内容？
+
+JS 和 CSS 的文件名带内容哈希（`index-a1b2c3.js`），新旧不互相覆盖；
+但 `index.html` 文件名固定。若有人缓存了旧 `index.html`、而它引用的旧 JS 已被新版删掉，就会白屏。
+让他们按 `Ctrl+F5`（手机上清缓存或换无痕窗口）即可。
 
 ---
 
