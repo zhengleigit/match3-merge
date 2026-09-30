@@ -1,5 +1,6 @@
 import { loadModes, loadTuning } from '../src/core/data'
 import { Game } from '../src/core/game'
+import { CELL_OBSTACLE, CELL_OBSTACLE_CRACKED } from '../src/core/types'
 import type { GameSnapshot, ModeConfig, Pos, Tuning } from '../src/core/types'
 
 /** Tuning cloned from the real data file, optionally mutated for a test. */
@@ -42,6 +43,8 @@ export function onlyLevelOne(tuning: Tuning): void {
 export interface CraftSpec {
   blocks?: Array<Pos & { level: number }>
   obstacles?: Pos[]
+  /** Obstacles that have already taken one hit. */
+  crackedObstacles?: Pos[]
   buffer?: number[]
   next?: number
   score?: number
@@ -65,7 +68,10 @@ export function craft(width: number, height: number, spec: CraftSpec): GameSnaps
     cells[block.y * width + block.x] = block.level
   }
   for (const spot of spec.obstacles ?? []) {
-    cells[spot.y * width + spot.x] = -1
+    cells[spot.y * width + spot.x] = CELL_OBSTACLE
+  }
+  for (const spot of spec.crackedObstacles ?? []) {
+    cells[spot.y * width + spot.x] = CELL_OBSTACLE_CRACKED
   }
 
   return {

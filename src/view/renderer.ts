@@ -1,6 +1,7 @@
 import type { GameView } from '../core/game'
 import { formatDuration, type ScoreEntry } from '../core/leaderboard'
 import { SLOT } from '../core/theme'
+import { CELL_OBSTACLE_CRACKED } from '../core/types'
 import { imageFor, type ThemeAssets } from './assets'
 import type { FloaterSystem } from './floaters'
 import {
@@ -214,7 +215,8 @@ function drawBoardContents(ctx: CanvasRenderingContext2D, state: RenderState): v
       }
 
       if (value < 0) {
-        drawObstacle(ctx, assets, rect)
+        // Both obstacle states land here; the cracked one is drawn damaged.
+        drawObstacle(ctx, assets, rect, value === CELL_OBSTACLE_CRACKED)
         continue
       }
 

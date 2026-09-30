@@ -263,6 +263,7 @@ describe('fxMap: merge collapse animation data', () => {
       { type: 'spawned', level: 1 },
       { type: 'invalid', reason: 'cell-occupied' },
       { type: 'obstacleSpawned', x: 1, y: 1 },
+      { type: 'obstacleHit', x: 1, y: 1 },
       { type: 'obstacleCleared', x: 1, y: 1, bonus: 1 },
       { type: 'undo' },
       { type: 'restarted' }
@@ -281,13 +282,30 @@ describe('fxMap: merge collapse animation data', () => {
 })
 
 describe('fxMap: obstacles and other events', () => {
-  it('reports obstacle spawn and clear distinctly', () => {
+  it('reports obstacle spawn, damage and clear distinctly', () => {
     const spawn = describeEvents([{ type: 'obstacleSpawned', x: 3, y: 4 }], ctx())
+    const hit = describeEvents([{ type: 'obstacleHit', x: 3, y: 4 }], ctx())
     const cleared = describeEvents([{ type: 'obstacleCleared', x: 3, y: 4, bonus: 1 }], ctx())
 
     expect(spawn.sounds.map((s) => s.id)).toEqual(['obstacleSpawn'])
+    expect(hit.sounds.map((s) => s.id)).toEqual(['obstacleCrack'])
     expect(cleared.sounds.map((s) => s.id)).toEqual(['obstacleBreak'])
     expect(cleared.floaters[0].text).toBe('+1')
+  })
+
+  it('does not announce a score for an obstacle that only cracked', () => {
+    // The bonus belongs to the destruction, and a "+1" for chipping would
+    // promise points the player never received.
+    const hit = describeEvents([{ type: 'obstacleHit', x: 3, y: 4 }], ctx())
+    expect(hit.floaters).toHaveLength(0)
+    expect(hit.particles.length).toBeGreaterThan(0)
+  })
+
+  it('makes the crack a smaller effect than the break', () => {
+    const hit = describeEvents([{ type: 'obstacleHit', x: 3, y: 4 }], ctx())
+    const cleared = describeEvents([{ type: 'obstacleCleared', x: 3, y: 4, bonus: 1 }], ctx())
+
+    expect(hit.particles[0].count).toBeLessThan(cleared.particles[0].count)
   })
 
   it('maps buffer, spawn, undo, win and game over to their own sounds', () => {

@@ -1,10 +1,16 @@
-import { CELL_EMPTY, CELL_OBSTACLE, type Pos } from './types'
+import {
+  CELL_EMPTY,
+  CELL_OBSTACLE,
+  CELL_OBSTACLE_CRACKED,
+  isObstacleValue,
+  type Pos
+} from './types'
 
 /**
  * The board grid.
  *
- * Cell values: `CELL_EMPTY` (0), `CELL_OBSTACLE` (-1), or a positive block
- * level (1..maxLevel).
+ * Cell values: `CELL_EMPTY` (0), `CELL_OBSTACLE` (-1), `CELL_OBSTACLE_CRACKED`
+ * (-2), or a positive block level (1..maxLevel).
  */
 
 /**
@@ -56,7 +62,12 @@ export class Board {
   }
 
   isObstacle(x: number, y: number): boolean {
-    return this.inBounds(x, y) && this.get(x, y) === CELL_OBSTACLE
+    return this.inBounds(x, y) && isObstacleValue(this.get(x, y))
+  }
+
+  /** True only once an obstacle has taken a hit and is one short of breaking. */
+  isCrackedObstacle(x: number, y: number): boolean {
+    return this.inBounds(x, y) && this.get(x, y) === CELL_OBSTACLE_CRACKED
   }
 
   /** Orthogonal neighbours that are inside the board. */
@@ -101,7 +112,7 @@ export class Board {
     let n = 0
     const total = this.cells.length
     for (let i = 0; i < total; i++) {
-      if (this.cells[i] === CELL_OBSTACLE) n++
+      if (isObstacleValue(this.cells[i])) n++
     }
     return n
   }

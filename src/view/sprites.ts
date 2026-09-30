@@ -440,46 +440,68 @@ export function drawBlock(
   ctx.restore()
 }
 
-/** Obstacle: theme image or a spiked grey tile. */
+/**
+ * Obstacle: theme image or a spiked grey tile.
+ *
+ * `cracked` marks an obstacle that has already taken a hit. A theme may supply
+ * separate artwork for that state; when it does not, the same tile is drawn
+ * with fracture lines over it, so the two-hit rule stays visible even for a
+ * theme that never heard of it.
+ */
 export function drawObstacle(
   ctx: CanvasRenderingContext2D,
   assets: ThemeAssets,
-  rect: Rect
+  rect: Rect,
+  cracked = false
 ): void {
-  const image = imageFor(assets, SLOT.obstacle)
+  const image = cracked
+    ? (imageFor(assets, SLOT.obstacleCracked) ?? imageFor(assets, SLOT.obstacle))
+    : imageFor(assets, SLOT.obstacle)
+
   if (image !== null) {
     drawImageContained(ctx, image, innerRect(rect, 0.1))
-    return
+    if (!cracked) return
+    // Fall through only when the theme had no dedicated cracked sprite: drawing
+    // our own fractures on top of its artwork is better than showing an
+    // undamaged tile that is one hit from breaking.
+    if (imageFor(assets, SLOT.obstacleCracked) !== null) return
   }
 
   const inner = innerRect(rect, 0.1)
   const size = inner.size
   const radius = size * 0.2
 
-  roundRectPath(ctx, inner.x, inner.y, size, size, radius)
-  const gradient = ctx.createLinearGradient(inner.x, inner.y, inner.x, inner.y + size)
-  gradient.addColorStop(0, 'rgba(140,148,180,0.98)')
-  gradient.addColorStop(1, 'rgba(74,80,104,0.98)')
-  ctx.fillStyle = gradient
-  ctx.fill()
-  ctx.save()
-  ctx.clip()
+  if (image === null) {
+    roundRectPath(ctx, inner.x, inner.y, size, size, radius)
+    const gradient = ctx.createLinearGradient(inner.x, inner.y, inner.x, inner.y + size)
+    gradient.addColorStop(0, 'rgba(140,148,180,0.98)')
+    gradient.addColorStop(1, 'rgba(74,80,104,0.98)')
+    ctx.fillStyle = gradient
+    ctx.fill()
+    ctx.save()
+    ctx.clip()
 
-  ctx.strokeStyle = 'rgba(20,24,40,0.55)'
-  ctx.lineWidth = Math.max(1, size * 0.09)
-  const step = Math.max(6, size * 0.26)
-  for (let d = -size; d < size * 2; d += step) {
-    ctx.beginPath()
-    ctx.moveTo(inner.x + d, inner.y)
-    ctx.lineTo(inner.x + d - size, inner.y + size)
+    ctx.strokeStyle = 'rgba(20,24,40,0.55)'
+    ctx.lineWidth = Math.max(1, size * 0.09)
+    const step = Math.max(6, size * 0.26)
+    for (let d = -size; d < size * 2; d += step) {
+      ctx.beginPath()
+      ctx.moveTo(inner.x + d, inner.y)
+      ctx.lineTo(inner.x + d - size, inner.y + size)
+      ctx.stroke()
+    }
+    ctx.restore()
+
+    ctx.strokeStyle = 'rgba(226,232,255,0.6)'
+    ctx.lineWidth = Math.max(1, size * 0.05)
+    roundRectPath(ctx, inner.x, inner.y, size, size, radius)
     ctx.stroke()
   }
-  ctx.restore()
 
-  ctx.strokeStyle = 'rgba(226,232,255,0.6)'
-  ctx.lineWidth = Math.max(1, size * 0.05)
-  roundRectPath(ctx, inner.x, inner.y, size, size, radius)
-  ctx.stroke()
+  if (cracked) {
+    drawCracks(ctx, inner)
+    return
+  }
 
   // A small crossed-out mark so it never reads as a playable block.
   ctx.strokeStyle = 'rgba(255,224,138,0.95)'
@@ -493,6 +515,54 @@ export function drawObstacle(
   ctx.lineTo(inner.x + pad, inner.y + size - pad)
   ctx.stroke()
   ctx.lineCap = 'butt'
+}
+
+/**
+ * Fracture lines for a damaged obstacle.
+ *
+ * Fractures rather than the intact X-mark: an obstacle that has been hit once
+ * is visually "already broken", and the X reads as "this is a wall" while the
+ * crack reads as "this is nearly gone". That distinction is the whole point of
+ * the two-hit rule.
+ */
+function drawCracks(ctx: CanvasRenderingContext2D, inner: Rect): void {
+  const size = inner.size
+  const x = inner.x
+  const y = inner.y
+  const at = (fx: number, fy: number): [number, number] => [x + size * fx, y + size * fy]
+
+  ctx.save()
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+
+  // A dark line under a light one so the crack reads on both dark and light art.
+  for (const pass of [0, 1] as const) {
+    ctx.strokeStyle = pass === 0 ? 'rgba(14,18,32,0.85)' : 'rgba(255,236,180,0.9)'
+    ctx.lineWidth = pass === 0 ? Math.max(2, size * 0.075) : Math.max(1, size * 0.035)
+
+    ctx.beginPath()
+    const [x0, y0] = at(0.5, 0.06)
+    const [x1, y1] = at(0.42, 0.42)
+    const [x2, y2] = at(0.58, 0.62)
+    const [x3, y3] = at(0.46, 0.96)
+    ctx.moveTo(x0, y0)
+    ctx.lineTo(x1, y1)
+    ctx.lineTo(x2, y2)
+    ctx.lineTo(x3, y3)
+
+    const [bx, by] = at(0.42, 0.42)
+    const [lx, ly] = at(0.12, 0.28)
+    ctx.moveTo(bx, by)
+    ctx.lineTo(lx, ly)
+
+    const [cx, cy] = at(0.58, 0.62)
+    const [rx, ry] = at(0.9, 0.74)
+    ctx.moveTo(cx, cy)
+    ctx.lineTo(rx, ry)
+    ctx.stroke()
+  }
+
+  ctx.restore()
 }
 
 /** Re-exported for callers that need a plain square path. */

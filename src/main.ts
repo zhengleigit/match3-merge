@@ -307,6 +307,7 @@ function presentEvents(events: readonly GameEvent[]): void {
 const CASCADE_OWNED: ReadonlySet<GameEvent['type']> = new Set([
   'merged',
   'maxCleared',
+  'obstacleHit',
   'obstacleCleared'
 ])
 

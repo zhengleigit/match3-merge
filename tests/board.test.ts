@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Board } from '../src/core/board'
-import { CELL_EMPTY, CELL_OBSTACLE } from '../src/core/types'
+import { CELL_EMPTY, CELL_OBSTACLE, CELL_OBSTACLE_CRACKED } from '../src/core/types'
 
 describe('Board adjacency (4-neighbour only)', () => {
   it('connects orthogonal neighbours', () => {
@@ -69,7 +69,6 @@ describe('Board bounds handling', () => {
     expect(board.get(3, 0)).toBe(CELL_OBSTACLE)
     expect(board.inBounds(-1, 0)).toBe(false)
   })
-
   it('ignores writes outside the board', () => {
     const board = new Board(2, 2)
     board.set(5, 5, 3)
@@ -102,5 +101,50 @@ describe('Board bounds handling', () => {
     expect(restored.get(0, 0)).toBe(1)
     expect(restored.get(2, 1)).toBe(CELL_OBSTACLE)
     expect(restored.get(1, 1)).toBe(CELL_EMPTY)
+  })
+})
+
+describe('Board: damaged obstacles', () => {
+  it('treats a cracked obstacle as an obstacle everywhere', () => {
+    // Regression guard for the two-hit rule: every "is this cell free?" check
+    // must treat -2 exactly like -1, or a cracked obstacle could be placed on.
+    const board = new Board(3, 3)
+    board.set(0, 0, CELL_OBSTACLE_CRACKED)
+
+    expect(board.isObstacle(0, 0)).toBe(true)
+    expect(board.isCrackedObstacle(0, 0)).toBe(true)
+    expect(board.isEmpty(0, 0)).toBe(false)
+    expect(board.isBlock(0, 0)).toBe(false)
+    expect(board.findGroup(0, 0)).toHaveLength(0)
+    expect(board.emptyPositions()).toHaveLength(8)
+    expect(board.hasEmptyCell()).toBe(true)
+  })
+
+  it('distinguishes a pristine obstacle from a cracked one', () => {
+    const board = new Board(2, 1)
+    board.set(0, 0, CELL_OBSTACLE)
+    board.set(1, 0, CELL_OBSTACLE_CRACKED)
+
+    expect(board.isObstacle(0, 0)).toBe(true)
+    expect(board.isCrackedObstacle(0, 0)).toBe(false)
+    expect(board.isCrackedObstacle(1, 0)).toBe(true)
+  })
+
+  it('counts both obstacle states', () => {
+    const board = new Board(3, 1)
+    board.set(0, 0, CELL_OBSTACLE)
+    board.set(1, 0, CELL_OBSTACLE_CRACKED)
+    board.set(2, 0, 1)
+
+    expect(board.countObstacles()).toBe(2)
+    expect(board.countBlocks()).toBe(1)
+  })
+
+  it('keeps a cracked obstacle out of the empty set, so the board is not "full" by mistake', () => {
+    const board = new Board(2, 1)
+    board.set(0, 0, 1)
+    board.set(1, 0, CELL_OBSTACLE_CRACKED)
+
+    expect(board.hasEmptyCell()).toBe(false)
   })
 })

@@ -374,6 +374,8 @@ export class Game {
       scoreByLevel: this.mode.scoreByLevel,
       maxLevelBonus: this.mode.maxLevelBonus,
       obstacleClearBonus: this.tuning.obstacles.clearBonus,
+      obstacleHits: this.tuning.obstacles.hits,
+      obstacleBreakOutrightAtMaxLevel: this.tuning.obstacles.breakOutrightAtMaxLevel,
       winAtLevel: this.mode.winAtLevel,
       winAlreadyClaimed: this.hasWon,
       cascadeEnabled: this.tuning.cascade.enabled

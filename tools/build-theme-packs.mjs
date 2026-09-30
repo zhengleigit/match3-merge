@@ -5,7 +5,7 @@
  *
  *   theme.json          -- same schema as a folder theme
  *   blocks/level1.svg ... level10.svg
- *   page-bg.svg  board-bg.svg  home-bg.svg  obstacle.svg
+ *   page-bg.svg  board-bg.svg  home-bg.svg  obstacle.svg  obstacle-cracked.svg
  *   slot-buffer.svg  slot-next.svg  slot-frame.svg  slot-highlight.svg
  *
  * Drop any zip like that into `src/themes/packs/` and it appears in the settings
@@ -170,6 +170,25 @@ function makePack({ id, name, hues, pageFrom, pageTo, chrome, blockScale = 0.96 
     )
   )
 
+  // Damaged variant: fractures instead of the X-mark, so "this is a wall" and
+  // "one more hit finishes this" stay visually distinct.
+  files.set(
+    'obstacle-cracked.svg',
+    svg(
+      100,
+      100,
+      `<rect x="6" y="6" width="88" height="88" rx="18" fill="${chrome.obstacle}" opacity="0.82"/>` +
+        `<g fill="none" stroke-linecap="round" stroke-linejoin="round">` +
+        `<path d="M50 8 L38 40 L56 58 L34 92" stroke="rgba(0,0,0,0.62)" stroke-width="9"/>` +
+        `<path d="M38 40 L12 28" stroke="rgba(0,0,0,0.62)" stroke-width="9"/>` +
+        `<path d="M56 58 L88 74" stroke="rgba(0,0,0,0.62)" stroke-width="9"/>` +
+        `<path d="M50 8 L38 40 L56 58 L34 92" stroke="${chrome.obstacleMark}" stroke-width="4"/>` +
+        `<path d="M38 40 L12 28" stroke="${chrome.obstacleMark}" stroke-width="4"/>` +
+        `<path d="M56 58 L88 74" stroke="${chrome.obstacleMark}" stroke-width="4"/>` +
+        `</g>`
+    )
+  )
+
   const slot = (fill, stroke, inset) =>
     svg(
       100,
@@ -220,6 +239,7 @@ function makePack({ id, name, hues, pageFrom, pageTo, chrome, blockScale = 0.96 
           'home.background': 'home-bg.svg',
           'board.background': 'board-bg.svg',
           obstacle: 'obstacle.svg',
+          'obstacle.cracked': 'obstacle-cracked.svg',
           'slot.buffer': 'slot-buffer.svg',
           'slot.next': 'slot-next.svg',
           'slot.cellFrame': 'slot-frame.svg',

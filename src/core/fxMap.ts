@@ -26,6 +26,7 @@ export type SoundId =
   | 'merge'
   | 'maxClear'
   | 'obstacleSpawn'
+  | 'obstacleCrack'
   | 'obstacleBreak'
   | 'invalid'
   | 'undo'
@@ -359,6 +360,19 @@ export function describeEvents(
           pushShake(shakeFrom(preset))
         }
         out.sounds.push(sound('obstacleSpawn'))
+        break
+      }
+
+      case 'obstacleHit': {
+        // The obstacle survived, so this is deliberately a smaller, duller
+        // version of the break: chips fly but nothing explodes and no score
+        // is announced. The crack in the artwork is the real feedback.
+        const preset = presetOf('obstacleHit')
+        if (preset !== undefined) {
+          pushBurst(burstFrom(preset, cellCentre(event.x, event.y), 220, scale(preset.count)))
+          pushShake(shakeFrom(preset))
+        }
+        out.sounds.push(sound('obstacleCrack'))
         break
       }
 

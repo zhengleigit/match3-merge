@@ -70,6 +70,16 @@
       "sweepTo": 0.85,
       "noise": false
     },
+    "obstacleCrack": {
+      "wave": "square",
+      "freq": 420,
+      "durationMs": 90,
+      "attackMs": 1,
+      "gain": 0.17,
+      "sweepTo": 0.55,
+      "noise": true,
+      "noiseGain": 0.14
+    },
     "obstacleBreak": {
       "wave": "square",
       "freq": 880,
@@ -79,8 +89,7 @@
       "sweepTo": 0.6,
       "noise": true,
       "noiseGain": 0.22
-    },
-    "invalid": {
+    },    "invalid": {
       "wave": "square",
       "freq": 150,
       "durationMs": 95,

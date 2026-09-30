@@ -59,6 +59,16 @@
       "additive": false,
       "shake": [0.08, 70]
     },
+    "obstacleHit": {
+      "count": 10,
+      "speed": [40, 150],
+      "lifeMs": [200, 420],
+      "size": [1, 4],
+      "gravity": 320,
+      "ring": false,
+      "additive": false,
+      "shake": [0.06, 60]
+    },
     "obstacleCleared": {
       "count": 18,
       "speed": [70, 240],

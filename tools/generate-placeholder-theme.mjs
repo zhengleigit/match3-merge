@@ -137,6 +137,38 @@ function obstacleSvg() {
 }
 
 /**
+ * The same obstacle after one hit.
+ *
+ * The intact tile carries an X-mark ("this is a wall"); the damaged one carries
+ * fracture lines instead ("this is nearly gone"). That visual difference is the
+ * only cue that a second hit is needed, so it is worth a dedicated sprite rather
+ * than reusing the intact one.
+ */
+function obstacleCrackedSvg() {
+  const hatch = []
+  for (let i = -SIZE; i < SIZE * 2; i += 22) {
+    hatch.push(`<line x1="${i}" y1="0" x2="${i - SIZE}" y2="${SIZE}" stroke="#20263c" stroke-width="7" opacity="0.5"/>`)
+  }
+  const mid = SIZE / 2
+  const crack = `M ${mid} 18 L ${mid - 26} ${SIZE * 0.42} L ${mid + 18} ${SIZE * 0.6} L ${mid - 22} ${SIZE - 18}`
+  const branchA = `M ${mid - 26} ${SIZE * 0.42} L ${SIZE * 0.16} ${SIZE * 0.3}`
+  const branchB = `M ${mid + 18} ${SIZE * 0.6} L ${SIZE * 0.86} ${SIZE * 0.74}`
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SIZE} ${SIZE}" width="${SIZE}" height="${SIZE}">
+  <g>
+    <rect x="14" y="14" width="${SIZE - 28}" height="${SIZE - 28}" rx="20" fill="#4e5673"/>
+    <clipPath id="cc"><rect x="14" y="14" width="${SIZE - 28}" height="${SIZE - 28}" rx="20"/></clipPath>
+    <g clip-path="url(#cc)">${hatch.join('')}</g>
+    <rect x="14" y="14" width="${SIZE - 28}" height="${SIZE - 28}" rx="20" fill="none" stroke="#c3cae8" stroke-width="4" opacity="0.45"/>
+    <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="${crack} ${branchA} ${branchB}" stroke="#12172a" stroke-width="18" opacity="0.85"/>
+      <path d="${crack} ${branchA} ${branchB}" stroke="#ffecb4" stroke-width="8"/>
+    </g>
+  </g>
+</svg>
+`
+}
+
+/**
  * Home-screen background. Portrait-ish and low contrast, because menu cards and
  * white text sit on top of it; the CSS adds a scrim as well.
  */
@@ -231,6 +263,7 @@ write('page-bg.svg', pageBackgroundSvg())
 write('home-bg.svg', homeBackgroundSvg())
 write('board-bg.svg', boardBackgroundSvg())
 write('obstacle.svg', obstacleSvg())
+write('obstacle-cracked.svg', obstacleCrackedSvg())
 write('slot-buffer.svg', slotSvg('rgba(80,110,220,0.16)', 'rgba(140,164,255,0.55)'))
 write('slot-next.svg', slotSvg('rgba(240,190,90,0.14)', 'rgba(255,208,120,0.6)'))
 write('cell-frame.svg', frameSvg('rgba(255,255,255,0.10)', 3, true))

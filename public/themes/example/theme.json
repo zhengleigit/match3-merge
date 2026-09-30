@@ -11,6 +11,7 @@
     "home.background": "home-bg.svg",
     "board.background": "board-bg.svg",
     "obstacle": "obstacle.svg",
+    "obstacle.cracked": "obstacle-cracked.svg",
 
     "slot.buffer": "slot-buffer.svg",
     "slot.next": "slot-next.svg",

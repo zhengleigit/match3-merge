@@ -1,6 +1,6 @@
 import type { Board } from './board'
-import { clearAdjacentObstacles } from './obstacles'
-import { CELL_EMPTY, type CascadeStep, type GameEvent, type Pos } from './types'
+import { damageAdjacentObstacles } from './obstacles'
+import { CELL_EMPTY, type CascadeStep, type GameEvent } from './types'
 
 /**
  * Merge resolution — the heart of the rules.
@@ -20,6 +20,10 @@ export interface CascadeOptions {
   scoreByLevel: readonly number[]
   maxLevelBonus: number
   obstacleClearBonus: number
+  /** Hits an obstacle needs before it breaks. 2 = cracks first. */
+  obstacleHits: number
+  /** A max-level merge destroys adjacent obstacles in one hit. */
+  obstacleBreakOutrightAtMaxLevel: boolean
   /** Level NUMBER that wins the run, or null. */
   winAtLevel: number | null
   /** Set once the win has already been claimed in this run. */
@@ -90,15 +94,29 @@ export function resolveCascade(
     const gained = group.length * scoreOfLevel(options.scoreByLevel, currentLevel)
     score += gained
 
-    // A merge blasts orthogonally touching obstacles.
-    const clearedObstacles: Pos[] = clearAdjacentObstacles(board, group)
-    for (let i = 0; i < clearedObstacles.length; i++) {
-      const p = clearedObstacles[i]
+    const isMaxLevel = currentLevel >= levelCount
+
+    // A merge blasts orthogonally touching obstacles. Whether that shatters them
+    // or only cracks them depends on the merge's own strength, which is why
+    // `isMaxLevel` is resolved before the damage is applied.
+    const damage = damageAdjacentObstacles(board, group, {
+      hits: options.obstacleHits,
+      breakOutright: isMaxLevel && options.obstacleBreakOutrightAtMaxLevel
+    })
+
+    // Cracking pays nothing: the bonus is the reward for actually removing an
+    // obstacle, so a two-hit obstacle is worth the same as a one-hit one used
+    // to be. The crack is feedback, not a payout.
+    for (let i = 0; i < damage.cracked.length; i++) {
+      const p = damage.cracked[i]
+      stepEvents.push({ type: 'obstacleHit', x: p.x, y: p.y })
+    }
+
+    for (let i = 0; i < damage.cleared.length; i++) {
+      const p = damage.cleared[i]
       score += options.obstacleClearBonus
       stepEvents.push({ type: 'obstacleCleared', x: p.x, y: p.y, bonus: options.obstacleClearBonus })
     }
-
-    const isMaxLevel = currentLevel >= levelCount
 
     if (isMaxLevel) {
       // No bigger block exists: clear the cluster, pay the bonus, end the chain.

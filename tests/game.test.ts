@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Game } from '../src/core/game'
+import { CELL_OBSTACLE, CELL_OBSTACLE_CRACKED } from '../src/core/types'
 import type { GameEvent } from '../src/core/types'
 import { cellsOf, craft, levelAt, makeGame, onlyLevelOne } from './helpers'
 
@@ -347,7 +348,7 @@ describe('Game: obstacles (obstacle mode)', () => {
     expect(cellsOf(game).filter((c) => c === -1)).toHaveLength(0)
   })
 
-  it('clears an obstacle hit by a merge and awards the bonus', () => {
+  it('cracks an obstacle on the first hit and destroys it on the second', () => {
     const game = makeGame({
       modeId: 'obstacle',
       mutateTuning: onlyLevelOne,
@@ -364,11 +365,64 @@ describe('Game: obstacles (obstacle mode)', () => {
       })
     )
 
+    // Hit 1: three level-1s become a level-2 at (2,0), which touches (2,1).
+    const first = game.placeFromBuffer(0, 2, 0)
+    expect(eventTypes(first)).toContain('obstacleHit')
+    expect(eventTypes(first)).not.toContain('obstacleCleared')
+    // Damage is visible in the board, not just in the event.
+    expect(cellsOf(game).filter((c) => c === CELL_OBSTACLE_CRACKED)).toHaveLength(1)
+    expect(game.view().score).toBe(3) // no bonus for chipping
+
+    // Hit 2: another triple whose placement cell touches the same obstacle.
+    game.restore(
+      craft(7, 10, {
+        blocks: [
+          { x: 0, y: 5, level: 1 },
+          { x: 1, y: 5, level: 1 }
+        ],
+        crackedObstacles: [{ x: 2, y: 4 }],
+        buffer: [1, 0, 0],
+        score: game.view().score
+      })
+    )
+
+    const second = game.placeFromBuffer(0, 2, 5)
+    expect(eventTypes(second)).toContain('obstacleCleared')
+    expect(cellsOf(game).filter((c) => c < 0)).toHaveLength(0)
+    expect(game.view().score).toBe(3 + 3 + 1) // both merges + clear bonus
+  })
+
+  it('throws away a max-level clear to break obstacles in one hit', () => {
+    const game = makeGame({ modeId: 'obstacle', mutateTuning: onlyLevelOne, seed: 7 })
+    // Level-5 mode: three 5s are the max-level clear, which breaks outright.
+    game.restore(
+      craft(7, 10, {
+        blocks: [
+          { x: 0, y: 0, level: 5 },
+          { x: 1, y: 0, level: 5 }
+        ],
+        obstacles: [{ x: 2, y: 1 }],
+        buffer: [5, 0, 0]
+      })
+    )
+
     const events = game.placeFromBuffer(0, 2, 0)
 
+    expect(eventTypes(events)).toContain('maxCleared')
     expect(eventTypes(events)).toContain('obstacleCleared')
-    expect(cellsOf(game).filter((c) => c === -1)).toHaveLength(0)
-    expect(game.view().score).toBe(3 + 1) // merge + clear bonus
+    expect(eventTypes(events)).not.toContain('obstacleHit')
+    expect(cellsOf(game).filter((c) => c < 0)).toHaveLength(0)
+  })
+
+  it('never spawns a cracked obstacle', () => {
+    // spawnObstacle always writes a pristine obstacle, so a board of only
+    // cracked ones could never occur through play.
+    const game = makeGame({ modeId: 'obstacle', mutateTuning: onlyLevelOne, seed: 31 })
+    placeTimes(game, 9)
+
+    const cells = cellsOf(game)
+    expect(cells.filter((c) => c === CELL_OBSTACLE).length).toBeGreaterThan(0)
+    expect(cells.filter((c) => c === CELL_OBSTACLE_CRACKED)).toHaveLength(0)
   })
 })
 

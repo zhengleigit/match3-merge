@@ -40,7 +40,7 @@ src/themes/packs/
 src/themes/packs/neon.zip
   └─ theme.json
   └─ blocks/level1.svg … level10.svg
-  └─ page-bg.svg  home-bg.svg  board-bg.svg  obstacle.svg
+  └─ page-bg.svg  home-bg.svg  board-bg.svg  obstacle.svg  obstacle-cracked.svg
   └─ slot-*.svg
 ```
 
@@ -112,6 +112,7 @@ node tools/build-theme-packs.mjs
 | 槽位 | 说明 |
 |---|---|
 | `obstacle` | 障碍物（障碍模式） |
+| `obstacle.cracked` | 障碍被打中一次后的样子（出现裂纹）。**缺失时会用 `obstacle` 的图叠上程序化裂纹**，所以老主题不会因为没这张图而看不出“还差一下” |
 | `slot.buffer` | 暂存区 3 个槽位 |
 | `slot.next` | "下一个方块"槽位 |
 | `slot.cellFrame` | 空格子边框 |

@@ -14,7 +14,7 @@
     {
       "id": "obstacle",
       "name": "障碍模式",
-      "description": "每 {obstacleEvery} 步在随机空格生成障碍物，障碍可被相邻合成波及清除（+1 分）。规则同基础模式。",
+      "description": "每 {obstacleEvery} 步在随机空格生成障碍物。障碍需相邻合成两次才能炸掉（第一次只裂开）；但 5 级整团清场可直接炸掉相邻障碍，炸掉 +1 分。规则同基础模式。",
       "scoreByLevel": [1, 2, 3, 5, 8],
       "maxLevelBonus": 50,
       "obstacles": true,

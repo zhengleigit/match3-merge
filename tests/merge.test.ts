@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Board } from '../src/core/board'
 import { resolveCascade, scoreOfLevel, type CascadeOptions } from '../src/core/merge'
-import { CELL_EMPTY, CELL_OBSTACLE } from '../src/core/types'
+import { CELL_EMPTY, CELL_OBSTACLE, CELL_OBSTACLE_CRACKED } from '../src/core/types'
 
 const BASIC_SCORES = [1, 2, 3, 5, 8]
 const ENDLESS_SCORES = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
@@ -11,6 +11,8 @@ function options(overrides?: Partial<CascadeOptions>): CascadeOptions {
     scoreByLevel: BASIC_SCORES,
     maxLevelBonus: 50,
     obstacleClearBonus: 1,
+    obstacleHits: 2,
+    obstacleBreakOutrightAtMaxLevel: true,
     winAtLevel: null,
     winAlreadyClaimed: false,
     cascadeEnabled: true,
@@ -203,22 +205,122 @@ describe('merge: max level behaviour', () => {
 })
 
 describe('merge: obstacle blast', () => {
-  it('clears orthogonally adjacent obstacles and scores the bonus', () => {
+  /** A level-1 triple with an obstacle directly above the placement cell. */
+  function boardWithObstacleAbove(value = CELL_OBSTACLE): Board {
     const board = new Board(5, 5)
     board.set(0, 2, 1)
     board.set(1, 2, 1)
     board.set(2, 2, 1)
-    board.set(2, 1, CELL_OBSTACLE) // directly above the placement cell
+    board.set(2, 1, value)
+    return board
+  }
 
+  it('cracks a fresh obstacle instead of destroying it, and pays nothing', () => {
+    const board = boardWithObstacleAbove()
+    const result = resolveCascade(board, 2, 2, 1, options())
+
+    expect(board.get(2, 1)).toBe(CELL_OBSTACLE_CRACKED)
+    expect(board.isObstacle(2, 1)).toBe(true)
+    expect(board.isCrackedObstacle(2, 1)).toBe(true)
+
+    // Only the merge scored: the bonus is for removing an obstacle, not for
+    // chipping it.
+    expect(result.score).toBe(3)
+    expect(result.events.filter((e) => e.type === 'obstacleHit')).toHaveLength(1)
+    expect(result.events.filter((e) => e.type === 'obstacleCleared')).toHaveLength(0)
+  })
+
+  it('destroys a cracked obstacle on the next hit and awards the bonus', () => {
+    const board = boardWithObstacleAbove(CELL_OBSTACLE_CRACKED)
     const result = resolveCascade(board, 2, 2, 1, options())
 
     expect(board.isObstacle(2, 1)).toBe(false)
-    expect(result.score).toBe(3 + 1) // merge + obstacle bonus
+    expect(result.score).toBe(3 + 1)
     const cleared = result.events.filter((e) => e.type === 'obstacleCleared')
     expect(cleared).toHaveLength(1)
+    expect(result.events.filter((e) => e.type === 'obstacleHit')).toHaveLength(0)
   })
 
-  it('does NOT clear diagonally adjacent obstacles', () => {
+  it('takes two separate merges to clear one obstacle', () => {
+    const board = new Board(5, 5)
+    board.set(2, 1, CELL_OBSTACLE)
+
+    // Merge 1: a level-1 triple whose placement cell is directly below it.
+    board.set(0, 2, 1)
+    board.set(1, 2, 1)
+    board.set(2, 2, 1)
+    resolveCascade(board, 2, 2, 1, options())
+    expect(board.get(2, 1)).toBe(CELL_OBSTACLE_CRACKED)
+
+    // Merge 2: a different triple that touches it from the left.
+    board.set(0, 0, 1)
+    board.set(1, 0, 1)
+    board.set(1, 1, 1)
+    const second = resolveCascade(board, 1, 1, 1, options())
+
+    expect(board.isObstacle(2, 1)).toBe(false)
+    expect(second.events.filter((e) => e.type === 'obstacleCleared')).toHaveLength(1)
+  })
+
+  it('deals one point of damage per merge, however many cells touch it', () => {
+    // A long cluster touching the same obstacle from three sides must still
+    // only crack it: otherwise a big group would shred a wall in one move.
+    const board = new Board(5, 5)
+    board.set(1, 3, 1)
+    board.set(1, 2, CELL_OBSTACLE)
+    board.set(0, 3, 1)
+    board.set(2, 3, 1)
+    board.set(1, 4, 1)
+
+    const result = resolveCascade(board, 1, 4, 1, options())
+
+    expect(result.events.filter((e) => e.type === 'obstacleHit')).toHaveLength(1)
+    expect(board.get(1, 2)).toBe(CELL_OBSTACLE_CRACKED)
+  })
+
+  it('breaks obstacles outright on a max-level clear', () => {
+    // The confirmed rule: two hits normally, but a 5-level clear is strong
+    // enough to destroy what it touches immediately.
+    const board = new Board(5, 5)
+    board.set(0, 3, 5)
+    board.set(1, 3, 5)
+    board.set(2, 3, 5)
+    board.set(1, 2, CELL_OBSTACLE)
+
+    const result = resolveCascade(board, 1, 3, 5, options())
+
+    expect(board.isObstacle(1, 2)).toBe(false)
+    expect(result.events.filter((e) => e.type === 'obstacleCleared')).toHaveLength(1)
+    expect(result.events.filter((e) => e.type === 'obstacleHit')).toHaveLength(0)
+  })
+
+  it('ignores breakOutrightAtMaxLevel when it is turned off', () => {
+    const board = new Board(5, 5)
+    board.set(0, 3, 5)
+    board.set(1, 3, 5)
+    board.set(2, 3, 5)
+    board.set(1, 2, CELL_OBSTACLE)
+
+    const result = resolveCascade(
+      board,
+      1,
+      3,
+      5,
+      options({ obstacleBreakOutrightAtMaxLevel: false })
+    )
+
+    expect(board.get(1, 2)).toBe(CELL_OBSTACLE_CRACKED)
+    expect(result.events.filter((e) => e.type === 'obstacleHit')).toHaveLength(1)
+  })
+
+  it('breaks in one hit when hits is set to 1', () => {
+    const board = boardWithObstacleAbove()
+    resolveCascade(board, 2, 2, 1, options({ obstacleHits: 1 }))
+
+    expect(board.isObstacle(2, 1)).toBe(false)
+  })
+
+  it('does NOT damage diagonally adjacent obstacles', () => {
     const board = new Board(5, 5)
     board.set(0, 2, 1)
     board.set(1, 2, 1)
@@ -228,6 +330,8 @@ describe('merge: obstacle blast', () => {
     const result = resolveCascade(board, 2, 2, 1, options())
 
     expect(board.isObstacle(3, 1)).toBe(true)
+    expect(board.isCrackedObstacle(3, 1)).toBe(false)
+    expect(result.events.filter((e) => e.type === 'obstacleHit')).toHaveLength(0)
     expect(result.events.filter((e) => e.type === 'obstacleCleared')).toHaveLength(0)
   })
 })
@@ -302,7 +406,7 @@ describe('merge: cascade steps (per-link board states)', () => {
     expect(last.cellsAfter).toEqual(board.toArray())
   })
 
-  it('includes obstacle clears in the step that caused them', () => {
+  it('includes obstacle damage in the step that caused it', () => {
     const board = new Board(5, 5)
     board.set(0, 2, 1)
     board.set(1, 2, 1)
@@ -313,10 +417,25 @@ describe('merge: cascade steps (per-link board states)', () => {
 
     expect(result.steps).toHaveLength(1)
     const types = result.steps[0].events.map((e) => e.type)
-    expect(types).toContain('obstacleCleared')
+    expect(types).toContain('obstacleHit')
     expect(types).toContain('merged')
-    // The cleared obstacle is gone in the step's "after" board.
+    // The step's "before" board shows the pristine obstacle and its "after"
+    // board the cracked one, so the crack is what the animation reveals.
     expect(result.steps[0].cellsBefore[board.index(2, 1)]).toBe(CELL_OBSTACLE)
+    expect(result.steps[0].cellsAfter[board.index(2, 1)]).toBe(CELL_OBSTACLE_CRACKED)
+  })
+
+  it('includes a destroyed obstacle in the step that caused it', () => {
+    const board = new Board(5, 5)
+    board.set(0, 2, 1)
+    board.set(1, 2, 1)
+    board.set(2, 2, 1)
+    board.set(2, 1, CELL_OBSTACLE_CRACKED)
+
+    const result = resolveCascade(board, 2, 2, 1, options())
+
+    const types = result.steps[0].events.map((e) => e.type)
+    expect(types).toContain('obstacleCleared')
     expect(result.steps[0].cellsAfter[board.index(2, 1)]).toBe(CELL_EMPTY)
   })
 

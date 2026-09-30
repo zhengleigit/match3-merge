@@ -13,8 +13,22 @@
 /** Empty cell. */
 export const CELL_EMPTY = 0
 
-/** Impassable obstacle: blocks placement, never merges, cleared by adjacency. */
+/** Impassable obstacle at full health: blocks placement, never merges. */
 export const CELL_OBSTACLE = -1
+
+/**
+ * Obstacle that has already taken a hit.
+ *
+ * Still impassable and still unable to merge — only its appearance and its
+ * remaining health differ, so every "is this cell free?" check must treat both
+ * obstacle values the same way.
+ */
+export const CELL_OBSTACLE_CRACKED = -2
+
+/** True for either obstacle state. Use this rather than comparing to -1. */
+export function isObstacleValue(value: number): boolean {
+  return value === CELL_OBSTACLE || value === CELL_OBSTACLE_CRACKED
+}
 
 export interface Pos {
   x: number
@@ -57,7 +71,17 @@ export interface Tuning {
     stepUnlockFallback: StepUnlockFallback
   }
   cascade: { enabled: boolean }
-  obstacles: { spawnEverySteps: number; clearBonus: number }
+  obstacles: {
+    spawnEverySteps: number
+    clearBonus: number
+    /**
+     * Hits needed to destroy a fresh obstacle. 1 removes the cracked stage
+     * entirely; 2 means the first hit cracks it and the second shatters it.
+     */
+    hits: number
+    /** A max-level merge destroys whatever it touches in a single hit. */
+    breakOutrightAtMaxLevel: boolean
+  }
   history: { limit: number }
   theme: { defaultId: string }
   fx: { particleDensity: ParticleDensity }
@@ -97,7 +121,7 @@ export interface CascadeStep {
 }
 
 /** Events produced by an automatic chain. */
-export type CascadeOwnedEvent = 'merged' | 'maxCleared' | 'obstacleCleared'
+export type CascadeOwnedEvent = 'merged' | 'maxCleared' | 'obstacleHit' | 'obstacleCleared'
 
 export type InvalidReason =
   | 'game-over'
@@ -140,6 +164,9 @@ export type GameEvent =
       score: number
       bonus: number
     }
+  /** An obstacle took damage and survived, now showing cracks. */
+  | { type: 'obstacleHit'; x: number; y: number }
+  /** An obstacle was destroyed. The bonus is paid only on this event. */
   | { type: 'obstacleCleared'; x: number; y: number; bonus: number }
   | { type: 'obstacleSpawned'; x: number; y: number }
   | { type: 'invalid'; reason: InvalidReason }

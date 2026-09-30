@@ -34,6 +34,12 @@ export function loadTuning(): Tuning {
   if (tuning.obstacles.spawnEverySteps <= 0) {
     fail('obstacles.spawnEverySteps must be positive')
   }
+  // The rules only define two obstacle states (fresh and cracked), so a higher
+  // hit count would have nowhere to store the extra damage. Fail loudly rather
+  // than silently behaving like 2.
+  if (tuning.obstacles.hits !== 1 && tuning.obstacles.hits !== 2) {
+    fail('obstacles.hits must be 1 (breaks at once) or 2 (cracks, then breaks)')
+  }
 
   return tuning
 }

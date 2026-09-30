@@ -33,6 +33,8 @@ describe('theme: slot names', () => {
     expect(isKnownSlot('page.background')).toBe(true)
     expect(isKnownSlot('board.background')).toBe(true)
     expect(isKnownSlot('obstacle')).toBe(true)
+    expect(isKnownSlot('obstacle.cracked')).toBe(true)
+    expect(isKnownSlot('obstacle.crumbled')).toBe(false)
     expect(isKnownSlot('slot.buffer')).toBe(true)
     expect(isKnownSlot('slot.next')).toBe(true)
     expect(isKnownSlot('slot.cellFrame')).toBe(true)
