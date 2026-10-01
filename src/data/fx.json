@@ -102,6 +102,16 @@
       "additive": true,
       "shake": [0.14, 160]
     },
+    "pacmanImmune": {
+      "count": 12,
+      "speed": [40, 140],
+      "lifeMs": [200, 420],
+      "size": [2, 5],
+      "gravity": -30,
+      "ring": true,
+      "additive": false,
+      "shake": [0, 0]
+    },
     "pacmanHurt": {
       "count": 20,
       "speed": [90, 300],

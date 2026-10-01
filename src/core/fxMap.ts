@@ -61,7 +61,7 @@ export interface ShakeSpec {
   durationMs: number
 }
 
-export type FloaterTone = 'score' | 'bonus' | 'chain' | 'heal' | 'damage'
+export type FloaterTone = 'score' | 'bonus' | 'chain' | 'heal' | 'damage' | 'immune'
 
 export interface FloaterSpec {
   x: number
@@ -412,6 +412,18 @@ export function describeEvents(
           pushShake(shakeFrom(preset))
         }
         out.sounds.push(sound('pacmanExit'))
+        break
+      }
+
+      case 'pacmanImmune': {
+        // A shield pulse on the boss plus a plain word. It has to be visibly
+        // different from a hit: same position, opposite meaning.
+        const preset = presetOf('pacmanImmune')
+        if (preset !== undefined) {
+          pushBurst(burstFrom(preset, cellCentre(event.x, event.y), 210, scale(preset.count)))
+        }
+        out.sounds.push(sound('invalid'))
+        out.floaters.push({ x: event.x, y: event.y, text: '无敌', tone: 'immune' })
         break
       }
 

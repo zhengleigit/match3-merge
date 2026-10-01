@@ -389,6 +389,25 @@ describe('fxMap: the merge shoots the boss', () => {
     expect(fx.tracers).toHaveLength(0)
     expect(fx.floaters[0].text).toBe('-9')
   })
+
+  it('shows being shrugged off differently from being hit', () => {
+    // Same position, opposite meaning: a merge that did nothing must not look
+    // like a merge that landed, or the player cannot tell the cage blocks them.
+    const immune = describeEvents(
+      [{ type: 'pacmanImmune', x: 3, y: 2, srcX: 0, srcY: 5 }],
+      ctx()
+    )
+
+    // No volley: nothing flew anywhere, because nothing happened.
+    expect(immune.tracers).toHaveLength(0)
+    expect(immune.floaters[0].text).toBe('无敌')
+    expect(immune.floaters[0].tone).toBe('immune')
+    // Still some visual, or the move would look broken.
+    expect(immune.particles.length).toBeGreaterThan(0)
+    // The shield pulse lands on the boss.
+    expect(immune.particles[0].x).toBeCloseTo(3.5, 6)
+    expect(immune.sounds.map((s) => s.id)).toEqual(['invalid'])
+  })
 })
 
 describe('fxMap: particle budget', () => {

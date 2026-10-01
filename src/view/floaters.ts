@@ -24,13 +24,15 @@ const TONE_CHAIN = 1
 const TONE_BONUS = 2
 const TONE_HEAL = 3
 const TONE_DAMAGE = 4
+const TONE_IMMUNE = 5
 
 const FLOATER_TONE_INDEX: Record<FloaterTone, number> = {
   score: TONE_SCORE,
   chain: TONE_CHAIN,
   bonus: TONE_BONUS,
   heal: TONE_HEAL,
-  damage: TONE_DAMAGE
+  damage: TONE_DAMAGE,
+  immune: TONE_IMMUNE
 }
 
 export class FloaterSystem {
@@ -94,7 +96,10 @@ export class FloaterSystem {
       ctx.globalAlpha = Math.min(1, appear) * Math.min(1, t * 2.6)
 
       const kind = this.tone[i]
-      ctx.font = kind === TONE_BONUS || kind === TONE_HEAL ? this.fontBonus : this.fontNormal
+      ctx.font =
+        kind === TONE_BONUS || kind === TONE_HEAL || kind === TONE_DAMAGE || kind === TONE_IMMUNE
+          ? this.fontBonus
+          : this.fontNormal
       ctx.fillStyle =
         kind === TONE_BONUS
           ? '#ffd166'
@@ -102,9 +107,11 @@ export class FloaterSystem {
             ? '#8ef0b4'
             : kind === TONE_DAMAGE
               ? '#ff8fa3'
-              : kind === TONE_CHAIN
-                ? '#9ae6b4'
-                : '#e8ecf5'
+              : kind === TONE_IMMUNE
+                ? '#a8b6d8'
+                : kind === TONE_CHAIN
+                  ? '#9ae6b4'
+                  : '#e8ecf5'
 
       ctx.fillText(label, this.px[i], this.py[i])
     }

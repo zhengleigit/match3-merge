@@ -317,7 +317,9 @@ const CASCADE_OWNED: ReadonlySet<GameEvent['type']> = new Set([
   'merged',
   'maxCleared',
   'obstacleHit',
-  'obstacleCleared'
+  'obstacleCleared',
+  'pacmanImmune',
+  'pacmanHurt'
 ])
 
 /**

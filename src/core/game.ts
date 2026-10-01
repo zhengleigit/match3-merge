@@ -318,6 +318,22 @@ export class Game {
         const damage = mergeDamage(config, consumedLevel, event.consumed, score)
         if (!damage.dealt) continue
 
+        // The boss is untouchable while it is sealed in the cage — including the
+        // moment it stands in the wall's gap, which is still not the field. Only
+        // once it is loose on the board can it be hurt.
+        if (boss.phase !== 'board') {
+          const blocked: GameEvent = {
+            type: 'pacmanImmune',
+            x: boss.x,
+            y: boss.y,
+            srcX: event.x,
+            srcY: event.y
+          }
+          ;(step.events as GameEvent[]).push(blocked)
+          events.push(blocked)
+          continue
+        }
+
         const lethal = applyDamage(boss, damage.amount)
         const wound: GameEvent = {
           type: 'pacmanHurt',

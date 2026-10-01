@@ -379,6 +379,102 @@ describe('Game: battle turn resolution', () => {
   })
 })
 
+describe('Game: the boss is invincible inside the cage', () => {
+  /** A level-3 triple: 9 damage, enough to kill anything with hp <= 9. */
+  const lethalBlocks = [
+    { x: 0, y: FIELD_TOP, level: 3 },
+    { x: 1, y: FIELD_TOP, level: 3 }
+  ]
+
+  it('reports immunity instead of damage while it is in the cage', () => {
+    const game = battleGame()
+    game.restore(
+      battleSnapshot({
+        blocks: lethalBlocks,
+        buffer: [3, 0, 0],
+        boss: looseBoss({ hp: 30, maxHp: 30, phase: 'cage' })
+      })
+    )
+
+    const events = game.placeFromBuffer(0, 2, FIELD_TOP)
+    expect(types(events)).toContain('pacmanImmune')
+    expect(types(events)).not.toContain('pacmanHurt')
+    // Untouched.
+    expect(game.view().pacman?.hp).toBe(30)
+    expect(game.view().hasWon).toBe(false)
+  })
+
+  it('cannot be killed from inside the cage, however big the merge', () => {
+    // Three 5-level blocks would be a max-level clear worth 24 damage; against
+    // 1 hp that would be a turn-three win if the cage did not protect it.
+    const game = battleGame()
+    game.restore(
+      battleSnapshot({
+        blocks: [
+          { x: 0, y: FIELD_TOP, level: 5 },
+          { x: 1, y: FIELD_TOP, level: 5 }
+        ],
+        buffer: [5, 0, 0],
+        boss: looseBoss({ hp: 1, maxHp: 1, phase: 'cage' })
+      })
+    )
+
+    const events = game.placeFromBuffer(0, 2, FIELD_TOP)
+    expect(types(events)).toContain('maxCleared')
+    expect(types(events)).toContain('pacmanImmune')
+    expect(game.view().pacman?.hp).toBe(1)
+    expect(game.view().hasWon).toBe(false)
+  })
+
+  it('stays invincible while standing in the wall gap', () => {
+    // The `exit` phase is still the cage side of the wall, not the field.
+    const game = battleGame()
+    game.restore(
+      battleSnapshot({
+        blocks: lethalBlocks,
+        buffer: [3, 0, 0],
+        boss: looseBoss({ hp: 30, maxHp: 30, phase: 'exit' })
+      })
+    )
+
+    const events = game.placeFromBuffer(0, 2, FIELD_TOP)
+    expect(types(events)).toContain('pacmanImmune')
+    expect(game.view().pacman?.hp).toBe(30)
+  })
+
+  it('becomes vulnerable once it is loose on the board', () => {
+    const game = battleGame()
+    game.restore(
+      battleSnapshot({
+        blocks: lethalBlocks,
+        buffer: [3, 0, 0],
+        boss: looseBoss({ hp: 30, maxHp: 30, phase: 'board' })
+      })
+    )
+
+    const events = game.placeFromBuffer(0, 2, FIELD_TOP)
+    expect(types(events)).toContain('pacmanHurt')
+    expect(types(events)).not.toContain('pacmanImmune')
+    expect(game.view().pacman?.hp).toBe(21)
+  })
+
+  it('still advances the action bar on a merge it shrugged off', () => {
+    // The immunity is about damage only. A merge is still a merge, so it still
+    // buys the player their turn.
+    const game = battleGame()
+    game.restore(
+      battleSnapshot({
+        blocks: lethalBlocks,
+        buffer: [3, 0, 0],
+        boss: looseBoss({ hp: 30, maxHp: 30, bar: 0.5, phase: 'cage' })
+      })
+    )
+
+    game.placeFromBuffer(0, 2, FIELD_TOP)
+    expect(game.view().pacman?.bar).toBe(0.5)
+  })
+})
+
 describe('Game: battle undo', () => {
   it('restores the boss along with the board', () => {
     const game = battleGame()

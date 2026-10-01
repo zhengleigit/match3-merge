@@ -204,7 +204,8 @@ export type CascadeOwnedEvent =
   | 'maxCleared'
   | 'obstacleHit'
   | 'obstacleCleared'
-  /** A chain link wounded the boss, so its burst belongs to that link. */
+  /** A chain link hit the boss, so its burst belongs to that link. */
+  | 'pacmanImmune'
   | 'pacmanHurt'
 
 export type InvalidReason =
@@ -271,6 +272,13 @@ export type GameEvent =
       /** True while it was still eating its way out of the cage. */
       fromCage: boolean
     }
+  /**
+   * A merge hit the boss while it was still in the cage, where it is immune.
+   *
+   * Emitted instead of `pacmanHurt` rather than silently doing nothing: without
+   * it the player merges, sees no damage and concludes their merge is broken.
+   */
+  | { type: 'pacmanImmune'; x: number; y: number; srcX: number; srcY: number }
   /**
    * A merge wounded the boss.
    * `x`/`y` is the boss (where the damage lands); `srcX`/`srcY` is the merge
