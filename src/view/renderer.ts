@@ -80,6 +80,8 @@ export interface RenderState {
    * Null whenever the block is not over the board.
    */
   hoverCell: { x: number; y: number } | null
+  /** Tray slot the carried block is over, or null. Excludes `hoverCell`. */
+  dragOverSlot: number | null
   /** Cell that just rejected a drop, with the timestamp it stops flashing. */
   rejectedCell: { x: number; y: number; untilMs: number } | null
   particles: ParticleSystem
@@ -254,11 +256,12 @@ function rect_stroke(ctx: CanvasRenderingContext2D, rect: Rect): void {
 }
 
 function drawDropPreview(ctx: CanvasRenderingContext2D, state: RenderState): void {
-  if (state.dragLevel <= 0 || state.hoverCell === null) return
+  if (state.dragLevel <= 0) return
 
-  const rect = boardCellRect(state.layout, state.hoverCell.x, state.hoverCell.y)
+  const rect = carriedTargetRect(state)
+  if (rect === null) return
 
-  // The carried block is drawn snapped to this very cell (see `dragCentre`), so
+  // The carried block is drawn snapped to this very rect (see `dragCentre`), so
   // a semi-transparent block underneath it would be invisible anyway — both use
   // the same inner rect and the ghost is at 0.96 alpha. Only the ring is drawn,
   // and being the one thing the block cannot cover it is what tells the player
@@ -271,6 +274,17 @@ function drawDropPreview(ctx: CanvasRenderingContext2D, state: RenderState): voi
   roundRectPath(ctx, rect.x + 2, rect.y + 2, rect.size - 4, rect.size - 4, rect.size * 0.2)
   ctx.stroke()
   ctx.restore()
+}
+
+/** Rect of the drop target: a tray slot first, then a board cell, else null. */
+function carriedTargetRect(state: RenderState): Rect | null {
+  if (state.dragOverSlot !== null) {
+    return bufferSlotRect(state.layout, state.dragOverSlot)
+  }
+  if (state.hoverCell !== null) {
+    return boardCellRect(state.layout, state.hoverCell.x, state.hoverCell.y)
+  }
+  return null
 }
 
 // ---------------------------------------------------------------------------
@@ -493,19 +507,17 @@ function drawDragGhost(ctx: CanvasRenderingContext2D, state: RenderState): void 
 /**
  * Where the centre of the carried block goes.
  *
- * Over the board it snaps to the target cell, so the block sits exactly on the
- * square it would land in — the player reads the block's own position as the
- * answer to "where will this go?". Off the board it follows the pointer by
- * `dragLift`, which on a phone is a whole cell: a block drawn at the touch
- * point is hidden under the finger that is carrying it.
+ * Over a target — a board cell or a tray slot — it snaps to that square, so the
+ * block sits exactly where it would land and the player reads the block's own
+ * position as the answer to "where will this go?". Off any target it follows
+ * the pointer by `dragLift`, which on a phone is a whole cell: a block drawn at
+ * the touch point is hidden under the finger that is carrying it.
  */
 function dragCentre(state: RenderState): { x: number; y: number } | null {
   if (state.dragLevel <= 0) return null
 
-  if (state.hoverCell !== null) {
-    const rect = boardCellRect(state.layout, state.hoverCell.x, state.hoverCell.y)
-    return { x: rect.x + rect.size / 2, y: rect.y + rect.size / 2 }
-  }
+  const rect = carriedTargetRect(state)
+  if (rect !== null) return { x: rect.x + rect.size / 2, y: rect.y + rect.size / 2 }
 
   if (state.dragPx === null) return null
   return { x: state.dragPx.x, y: state.dragPx.y - state.dragLift }

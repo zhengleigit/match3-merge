@@ -469,6 +469,28 @@ export function isNextSlotAt(layout: Layout, px: number, py: number): boolean {
 }
 
 /**
+ * Which tray slot a drag would drop into, given where the pointer is.
+ *
+ * The sibling of `carriedCellAt`, and deliberately the same rule: the target is
+ * wherever the carried block is drawn, not wherever the finger is. A player
+ * holding a block over a tray slot lets go expecting it to go in that slot, so
+ * the finger being on the empty space *below* the slot must not matter.
+ *
+ * On a phone the two areas stay apart on their own. The block is lifted 56px,
+ * so a finger on the tray row resolves to the board's last row, while the tray
+ * is reached from 56px lower — the two finger positions are disjoint, and there
+ * is no precedence to argue about. `tests/drag.test.ts` pins that down.
+ */
+export function carriedSlotAt(
+  layout: Layout,
+  px: number,
+  py: number,
+  kind: PointerKind
+): number | null {
+  return bufferSlotAt(layout, px, py - dragLiftPx(layout, kind))
+}
+
+/**
  * Which board cell a drag would drop into, given where the pointer is.
  *
  * The dropped block is drawn `dragLiftPx` above the pointer (see `dragLiftPx`),

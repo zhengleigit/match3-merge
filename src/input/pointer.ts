@@ -2,6 +2,7 @@ import {
   boardCellAt,
   bufferSlotAt,
   carriedCellAt,
+  carriedSlotAt,
   dragLiftPx,
   isNextSlotAt,
   pointerKindOf,
@@ -41,9 +42,16 @@ export interface PointerState {
   dragPx: { x: number; y: number } | null
   /**
    * Board cell the block is currently over, which is also the cell it would
-   * drop into. Null whenever the pointer is not over the board.
+   * drop into. Null whenever the block is not over the board.
    */
   hoverCell: { x: number; y: number } | null
+  /**
+   * Tray slot the block is currently over, or null.
+   *
+   * Mutually exclusive with `hoverCell` by construction: the input layer asks
+   * for the slot first and only falls back to the board when there is none.
+   */
+  dragOverSlot: number | null
   /**
    * Pixels the carried block is drawn above the pointer.
    *
@@ -76,6 +84,7 @@ export class PointerInput {
     dragLevel: 0,
     dragPx: null,
     hoverCell: null,
+    dragOverSlot: null,
     dragLift: 0,
     hoverSlot: null,
     hoverNext: false,
@@ -135,6 +144,7 @@ export class PointerInput {
     this.state.dragLevel = 0
     this.state.dragPx = null
     this.state.hoverCell = null
+    this.state.dragOverSlot = null
     this.state.dragLift = 0
     this.state.dragFromNext = false
   }
@@ -203,8 +213,16 @@ export class PointerInput {
 
     if (this.dragging) {
       this.state.dragPx = { x: point.x, y: point.y }
-      // The target is the cell under the lifted block, not under the finger.
-      this.state.hoverCell = carriedCellAt(this.layout, point.x, point.y, this.pressKind)
+      // The carried block decides the target, on the tray exactly as on the
+      // board: it is drawn a whole cell above the finger on a phone, so
+      // hit-testing the finger would drop the block wherever the hand is rather
+      // than wherever the block appears to be. The tray is asked first and the
+      // board is only consulted when it misses — which cannot hide a board cell,
+      // because the two areas do not overlap.
+      const overSlot = carriedSlotAt(this.layout, point.x, point.y, this.pressKind)
+      this.state.dragOverSlot = overSlot
+      this.state.hoverCell =
+        overSlot === null ? carriedCellAt(this.layout, point.x, point.y, this.pressKind) : null
       this.state.dragFromNext = this.dragSource === 'next'
     }
   }
@@ -222,6 +240,7 @@ export class PointerInput {
     this.dragSource = 'none'
     this.state.dragPx = null
     this.state.hoverCell = null
+    this.state.dragOverSlot = null
     this.state.dragSlot = -1
     this.state.dragLevel = 0
     this.state.dragLift = 0
@@ -232,20 +251,18 @@ export class PointerInput {
     }
 
     if (wasDragging) {
-      const cell = carriedCellAt(this.layout, point.x, point.y, this.pressKind)
-      const dropSlot = bufferSlotAt(this.layout, point.x, point.y)
+      const overSlot = carriedSlotAt(this.layout, point.x, point.y, this.pressKind)
+      const cell =
+        overSlot === null ? carriedCellAt(this.layout, point.x, point.y, this.pressKind) : null
       if (!hadLevel) {
         this.callbacks.onInvalidDrop()
         return
       }
 
-      // Dropping "next" onto a buffer slot stages it there. The tray is tested
-      // first, and with the raw finger position, because the lifted block aims
-      // a whole cell higher: a finger over the tray would otherwise resolve to
-      // the board's bottom row and the block could never be staged by dragging.
+      // "next" dropped on a tray slot is staged there.
       if (source === 'next') {
-        if (dropSlot !== null) {
-          this.callbacks.onNextToBuffer(dropSlot)
+        if (overSlot !== null) {
+          this.callbacks.onNextToBuffer(overSlot)
           return
         }
         if (cell !== null) {
@@ -256,10 +273,8 @@ export class PointerInput {
         return
       }
 
-      // A staged block can only go onto the board, so the tray is deliberately
-      // not consulted here: "the block I am carrying is over the tray" is not a
-      // meaningful target, and treating it as one would steal drops aimed at
-      // the bottom row directly below the tray.
+      // A staged block can only go onto the board; the tray is not a target for
+      // it, so the board result is used even though the tray was asked first.
       if (cell !== null) {
         this.callbacks.onPlace(slot, cell.x, cell.y)
         return

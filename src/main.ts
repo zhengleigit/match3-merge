@@ -904,6 +904,7 @@ function frame(nowMs: number): void {
     dragPx: pointer.state.dragPx,
     dragLift: pointer.state.dragLift,
     hoverCell: pointer.state.hoverCell,
+    dragOverSlot: pointer.state.dragOverSlot,
     rejectedCell,
     particles,
     floaters,

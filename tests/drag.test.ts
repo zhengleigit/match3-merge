@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
+  HUD_BOTTOM_PX,
   MOBILE_BREAKPOINT,
   boardCellAt,
   bufferSlotRect,
   carriedCellAt,
+  carriedSlotAt,
   computeLayout,
   dragLiftPx,
-  nextSlotRect,
   pointerKindOf,
   rulesBand,
   type Layout,
@@ -58,6 +59,24 @@ function columnPx(layout: Layout, x: number): number {
 /** Where a finger must be to target row `y`, given the lift. */
 function fingerYFor(layout: Layout, y: number, kind: PointerKind): number {
   return layout.boardY + (y + 0.5) * layout.cell + dragLiftPx(layout, kind)
+}
+
+/**
+ * The drop target as the input layer sees it: tray first, then board.
+ *
+ * Kept in one place so these tests exercise the same precedence the game uses
+ * rather than a simplified copy of it.
+ */
+type Target =
+  | { kind: 'slot'; slot: number }
+  | { kind: 'cell'; x: number; y: number }
+  | null
+
+function targetAt(layout: Layout, px: number, py: number, kind: PointerKind): Target {
+  const slot = carriedSlotAt(layout, px, py, kind)
+  if (slot !== null) return { kind: 'slot', slot }
+  const cell = carriedCellAt(layout, px, py, kind)
+  return cell === null ? null : { kind: 'cell', x: cell.x, y: cell.y }
 }
 
 describe('drag: classifying the pointer', () => {
@@ -162,8 +181,8 @@ describe('drag: every row must stay reachable', () => {
         const x = 3
         let hitAt = -1
         for (let py = layout.boardY; py <= limit && hitAt < 0; py++) {
-          const cell = carriedCellAt(layout, columnPx(layout, x), py, 'touch')
-          if (cell !== null && cell.x === x && cell.y === y) hitAt = py
+          const t = targetAt(layout, columnPx(layout, x), py, 'touch')
+          if (t !== null && t.kind === 'cell' && t.x === x && t.y === y) hitAt = py
         }
         expect(hitAt, `${w}x${h} row ${y}`).toBeGreaterThanOrEqual(0)
         // The finger must stay inside the play area while aiming, otherwise the
@@ -203,35 +222,103 @@ describe('drag: every row must stay reachable', () => {
   })
 })
 
-describe('drag: the tray keeps its own hit test', () => {
+describe('drag: the tray is aimed with the block too', () => {
   /**
-   * The tray is tested with the raw finger position, not the lifted anchor.
+   * Why the finger has to be *below* the tray.
    *
-   * A finger over the tray resolves to the board's bottom row once lifted, so
-   * if the lifted target won, dragging "next" into a slot would be impossible.
+   * The block hangs a whole cell above the hand. Holding it over a slot means
+   * the finger is on the empty space under the row — so a finger actually on
+   * the tray resolves to the board's last row, because that is where the block
+   * is. The two finger positions do not overlap, which is what makes the rule
+   * unambiguous.
    */
-  it('keeps the tray clear of the clamped board target', () => {
+  it('resolves to the slot a finger below the row is aiming at', () => {
     const layout = layoutAt(375, 812)
-    const next = nextSlotRect(layout)
-    const fingerY = next.y + next.size / 2
-    const fingerX = next.x + next.size / 2
+    const lift = dragLiftPx(layout, 'touch')
 
-    // The raw position is inside the tray...
-    expect(fingerY).toBeLessThan(next.y + next.size)
-    expect(fingerX).toBeGreaterThanOrEqual(next.x)
+    for (let slot = 0; slot < BUFFER_SLOTS; slot++) {
+      const rect = bufferSlotRect(layout, slot)
+      const fingerY = rect.y + rect.size / 2 + lift
+      const fingerX = rect.x + rect.size / 2
 
-    // ...while the lifted block resolves to the board's bottom row, which is
-    // why the input layer has to prefer the tray when the drop is a "next"
-    // block. Only the row is asserted: the column depends on how the narrower
-    // slot row is centred under the board.
-    const lifted = carriedCellAt(layout, fingerX, fingerY, 'touch')
-    expect(lifted).not.toBeNull()
-    expect(lifted?.y).toBe(layout.rows - 1)
-    expect(lifted?.x).toBeGreaterThanOrEqual(0)
-    expect(lifted?.x).toBeLessThan(layout.cols)
+      // The finger is past the bottom of the tray...
+      expect(fingerY, `slot ${slot} finger`).toBeGreaterThan(layout.bufferY + layout.cell)
+      // ...and the block, not the finger, is what lands on the slot.
+      expect(carriedSlotAt(layout, fingerX, fingerY, 'touch'), `slot ${slot}`).toBe(slot)
+      expect(targetAt(layout, fingerX, fingerY, 'touch'), `slot ${slot}`).toEqual({
+        kind: 'slot',
+        slot
+      })
+    }
   })
 
-  it('leaves the buffer slots alone', () => {
+  it('sends a finger resting on the tray to the board, not the tray', () => {
+    // The other half of the same rule. The block is over the board's last row,
+    // so that is where it goes; reporting the tray would be dropping a block in
+    // a place it visibly is not.
+    const layout = layoutAt(375, 812)
+    const rect = bufferSlotRect(layout, 1)
+    const onTray = { x: rect.x + rect.size / 2, y: rect.y + rect.size / 2 }
+
+    expect(carriedSlotAt(layout, onTray.x, onTray.y, 'touch')).toBeNull()
+    expect(targetAt(layout, onTray.x, onTray.y, 'touch')).toEqual({
+      kind: 'cell',
+      x: Math.floor((onTray.x - layout.boardX) / layout.cell),
+      y: layout.rows - 1
+    })
+  })
+
+  it('stays inside the viewport and clear of the bottom bar', () => {
+    // Reachability is only real if the finger can physically be there. The row
+    // below the tray is where the mode rules are drawn, so the aiming spot must
+    // finish above the fixed HUD bar as well.
+    for (const [w, h] of PHONES) {
+      const layout = layoutAt(w, h)
+      const lift = dragLiftPx(layout, 'touch')
+      const lowest = layout.bufferY + layout.cell + lift
+      const barTop = h - HUD_BOTTOM_PX
+
+      expect(layout.bufferY + layout.cell, `${w}x${h} tray visible`).toBeLessThan(barTop)
+      expect(lowest, `${w}x${h} aiming spot`).toBeLessThan(barTop)
+    }
+  })
+
+  it('never reports a tray slot and a board cell at the same time', () => {
+    // The input layer asks for the slot first and only then the board, which is
+    // only safe while the two can never both match. Sweeping the whole board
+    // column plus the strip under it keeps that assumption honest.
+    const layout = layoutAt(375, 812)
+    let overlaps = 0
+    for (let py = layout.boardY; py < layout.height; py++) {
+      for (let px = 0; px < layout.width; px += 3) {
+        if (
+          carriedSlotAt(layout, px, py, 'touch') !== null &&
+          carriedCellAt(layout, px, py, 'touch') !== null
+        ) {
+          overlaps++
+        }
+      }
+    }
+    expect(overlaps).toBe(0)
+  })
+
+  it('leaves the mouse on the slot under the cursor', () => {
+    // The desktop lift is a few pixels, so "the block is over the slot" and "the
+    // cursor is over the slot" agree everywhere that matters, and a mouse user
+    // keeps click-where-you-point.
+    for (const [w, h] of DESKTOP) {
+      const layout = layoutAt(w, h)
+      expect(carriedSlotAt(layout, 0, 0, 'mouse'), `${w}x${h}`).toBeNull()
+      for (let slot = 0; slot < BUFFER_SLOTS; slot++) {
+        const rect = bufferSlotRect(layout, slot)
+        const x = rect.x + rect.size / 2
+        const y = rect.y + rect.size / 2
+        expect(carriedSlotAt(layout, x, y, 'mouse'), `${w}x${h} slot ${slot}`).toBe(slot)
+      }
+    }
+  })
+
+  it('leaves the buffer slots where they were', () => {
     const layout = layoutAt(375, 812)
     for (let slot = 0; slot < BUFFER_SLOTS; slot++) {
       const rect = bufferSlotRect(layout, slot)
