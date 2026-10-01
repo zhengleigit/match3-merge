@@ -5,7 +5,8 @@ import {
   CELL_OBSTACLE,
   CELL_OBSTACLE_CRACKED,
   type ObstacleBand,
-  type Pos
+  type Pos,
+  type StartClearArea
 } from './types'
 
 /**
@@ -24,6 +25,36 @@ import {
  * cells of the group touch it — otherwise a long cluster would shred a whole
  * wall in a single move.
  */
+
+/**
+ * Fills the board with fresh obstacles except for a centred open pocket.
+ *
+ * This is obstacle mode's opening position rather than a turn outcome, so it is
+ * built once when the game is constructed and then carried by every snapshot
+ * like any other board state.
+ *
+ * The pocket is centred by floor division, which leaves an odd leftover row or
+ * column *below / right of* the pocket — the only split that still reads as
+ * "the middle" on both axes. No RNG is involved, so a given config always opens
+ * the same way and a rewind restores it from the snapshot for free.
+ */
+export function fillStartObstacles(board: Board, clear: StartClearArea): Pos & StartClearArea {
+  // A pocket larger than the board simply means "no obstacles at all", which is
+  // what clamping produces; the config is validated to be at least 1x1.
+  const width = Math.max(1, Math.min(board.width, Math.floor(clear.width)))
+  const height = Math.max(1, Math.min(board.height, Math.floor(clear.height)))
+  const x0 = Math.floor((board.width - width) / 2)
+  const y0 = Math.floor((board.height - height) / 2)
+
+  for (let y = 0; y < board.height; y++) {
+    for (let x = 0; x < board.width; x++) {
+      const inside = x >= x0 && x < x0 + width && y >= y0 && y < y0 + height
+      if (!inside) board.set(x, y, CELL_OBSTACLE)
+    }
+  }
+
+  return { x: x0, y: y0, width, height }
+}
 
 /** Drops one fresh obstacle on a uniformly random empty cell. */
 export function spawnObstacle(board: Board, rng: Rng): Pos | null {

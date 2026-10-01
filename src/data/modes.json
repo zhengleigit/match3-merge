@@ -26,7 +26,7 @@
     {
       "id": "obstacle",
       "name": "障碍模式",
-      "description": "障碍生成越来越密：{obstacleRamp}。障碍占格、不能放、不参与合成；打一次只裂开，再打一次才炸掉（+1 分），但 5 级整团清场可直接炸掉相邻障碍。",
+      "description": "{obstacleStart}，得靠合成炸开空间。障碍生成越来越密：{obstacleRamp}。障碍占格、不能放、不参与合成；打一次只裂开，再打一次才炸掉（+1 分），但 5 级整团清场可直接炸掉相邻障碍。",
       "scoreByLevel": [1, 2, 3, 5, 8],
       "maxLevelBonus": 50,
       "obstacles": true,

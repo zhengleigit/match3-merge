@@ -1,7 +1,14 @@
 import rawModes from '../data/modes.json'
 import rawThemes from '../data/themes.json'
 import rawTuning from '../data/tuning.json'
-import type { ModeConfig, ObstacleBand, ThemeEntry, ThemesConfig, Tuning } from './types'
+import type {
+  ModeConfig,
+  ObstacleBand,
+  StartClearArea,
+  ThemeEntry,
+  ThemesConfig,
+  Tuning
+} from './types'
 
 /**
  * Loads and validates the data-driven config. Every tunable number in the game
@@ -50,6 +57,18 @@ export function loadTuning(): Tuning {
   }
   if (bands[0].fromStep !== 1) {
     fail('obstacles.spawnBands must start at fromStep 1, or no obstacle ever spawns')
+  }
+  const clear = tuning.obstacles.startClear
+  // A pocket of zero cells would mean the board opens already full, i.e. an
+  // instant loss — almost certainly a typo rather than a design choice.
+  if (!Number.isInteger(clear.width) || !Number.isInteger(clear.height)) {
+    fail('obstacles.startClear.width and .height must be integers')
+  }
+  if (clear.width < 1 || clear.height < 1) {
+    fail('obstacles.startClear must be at least 1x1, or the board opens with nowhere to play')
+  }
+  if (clear.width > tuning.board.width || clear.height > tuning.board.height) {
+    fail('obstacles.startClear must fit on the board')
   }
   // The rules only define two obstacle states (fresh and cracked), so a higher
   // hit count would have nowhere to store the extra damage. Fail loudly rather
@@ -191,6 +210,17 @@ export function describeObstacleRamp(bands: readonly ObstacleBand[]): string {
 }
 
 /**
+ * Rule sentence for obstacle mode's opening pocket.
+ *
+ * Same reasoning as the spawn ramp: the pocket size is a tunable, so writing
+ * "3×3" into the description as a literal would leave the rules line describing
+ * a board the player is not looking at the moment it is retuned.
+ */
+export function describeStartPocket(clear: StartClearArea): string {
+  return `开局棋盘被障碍填满，只有中间 ${clear.width}×${clear.height} 的区域可落子`
+}
+
+/**
  * Mode rule text with its tunable numbers filled in.
  *
  * Rule lines embed values that live in tuning.json ("every N steps"). Writing
@@ -201,5 +231,6 @@ export function describeObstacleRamp(bands: readonly ObstacleBand[]): string {
 export function formatModeDescription(mode: ModeConfig, tuning: Tuning): string {
   return mode.description
     .replace(/\{obstacleRamp\}/g, describeObstacleRamp(tuning.obstacles.spawnBands))
+    .replace(/\{obstacleStart\}/g, describeStartPocket(tuning.obstacles.startClear))
     .replace(/\{obstacleEvery\}/g, String(tuning.obstacles.spawnBands[0]?.every ?? 0))
 }

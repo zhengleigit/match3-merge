@@ -39,6 +39,8 @@
       { "fromStep": 101, "every": 2 },
       { "fromStep": 201, "every": 1 }
     ],
+    "_startClearComment": "开局空腔：棋盘一上来就被障碍填满，只留这块居中的区域可落子。7x10 配 3x3 就是 9 个空格；调大它就等于直接调低难度。空腔按 floor 居中，多出来的那行/列落在空腔下方/右侧。",
+    "startClear": { "width": 3, "height": 3 },
     "clearBonus": 1,
     "hits": 2,
     "breakOutrightAtMaxLevel": true

@@ -9,7 +9,7 @@ import {
 } from './battle'
 import { History, cloneSnapshot } from './history'
 import { resolveCascade, scoreOfLevel, type CascadeOptions } from './merge'
-import { shouldSpawnObstacle, spawnObstacle } from './obstacles'
+import { fillStartObstacles, shouldSpawnObstacle, spawnObstacle } from './obstacles'
 import { Rng, makeSeed } from './rng'
 import { pickSpawnLevel, stepUnlockLevel } from './spawn'
 import {
@@ -94,14 +94,31 @@ export class Game {
     this.history = new History(options.tuning.history.limit)
     this.buffer = new Array<number>(options.tuning.buffer.slots).fill(CELL_EMPTY)
 
-    if (this.mode.battle) {
-      // The arena is part of the board's initial state, not a turn outcome, so
-      // it is seeded once here and then captured by every snapshot.
-      this.boss = seedArena(this.board, this.tuning.battle, (n) => this.rng.int(n))
-    }
+    this.buildOpening()
 
     if (options.tuning.next.preSeedAtStart) {
       this.next = this.rollSpawnLevel()
+    }
+  }
+
+  /**
+   * Lays out the mode's starting board.
+   *
+   * The opening position is board state, not a turn outcome, so it is built
+   * once and then captured by the first snapshot like everything else. Both the
+   * constructor and `restart()` go through here on purpose: a restart that
+   * rebuilt the board without the opening obstacles would hand the player a
+   * different — and much easier — board than the run started with.
+   */
+  private buildOpening(): void {
+    if (this.mode.obstacles) {
+      fillStartObstacles(this.board, this.tuning.obstacles.startClear)
+    }
+
+    if (this.mode.battle) {
+      this.boss = seedArena(this.board, this.tuning.battle, (n) => this.rng.int(n))
+    } else {
+      this.boss = null
     }
   }
 
@@ -448,10 +465,8 @@ export class Game {
     this.pendingWin = null
     this.resume = null
 
-    // A fresh arena: the cage is restocked and the boss is back at its start.
-    this.boss = this.mode.battle
-      ? seedArena(this.board, this.tuning.battle, (n) => this.rng.int(n))
-      : null
+    // A fresh opening: the pocket is re-walled and the cage is restocked.
+    this.buildOpening()
 
     if (this.tuning.next.preSeedAtStart) {
       this.next = this.rollSpawnLevel()

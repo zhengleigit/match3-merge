@@ -40,6 +40,18 @@ export function onlyLevelOne(tuning: Tuning): void {
   tuning.unlock.spawnWeights = [1]
 }
 
+/**
+ * Opens the whole board by stretching the starting pocket over it.
+ *
+ * Obstacle mode really opens walled in to a small pocket. Most obstacle tests
+ * are about the spawn schedule and the damage model instead, and they need room
+to move, so they disable the pocket explicitly here rather than silently
+relying on a test-only code path. Tests about the pocket set it themselves.
+ */
+export function openBoard(tuning: Tuning): void {
+  tuning.obstacles.startClear = { width: tuning.board.width, height: tuning.board.height }
+}
+
 export interface CraftSpec {
   blocks?: Array<Pos & { level: number }>
   obstacles?: Pos[]

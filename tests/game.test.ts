@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import type { Game } from '../src/core/game'
 import { CELL_OBSTACLE, CELL_OBSTACLE_CRACKED } from '../src/core/types'
-import type { GameEvent } from '../src/core/types'
-import { cellsOf, craft, levelAt, makeGame, onlyLevelOne } from './helpers'
+import type { GameEvent, Tuning } from '../src/core/types'
+import { cellsOf, craft, levelAt, makeGame, onlyLevelOne, openBoard } from './helpers'
 
 function eventTypes(events: readonly GameEvent[]): string[] {
   return events.map((e) => e.type)
+}
+
+/** Obstacle mode on an open board, with every spawn forced to level 1. */
+function obstacleTuning(tuning: Tuning): void {
+  onlyLevelOne(tuning)
+  openBoard(tuning)
 }
 
 describe('Game: initial state', () => {
@@ -307,7 +313,7 @@ describe('Game: obstacles (obstacle mode)', () => {
   }
 
   it('spawns an obstacle every 3 steps', () => {
-    const game = makeGame({ modeId: 'obstacle', mutateTuning: onlyLevelOne })
+    const game = makeGame({ modeId: 'obstacle', mutateTuning: obstacleTuning })
     const log = placeTimes(game, 9)
 
     // Steps 1-2: none. Step 3: one. Then the pattern repeats.
@@ -328,7 +334,7 @@ describe('Game: obstacles (obstacle mode)', () => {
     const game = makeGame({
       modeId: 'obstacle',
       mutateTuning: (t) => {
-        onlyLevelOne(t)
+        obstacleTuning(t)
         t.obstacles.spawnBands = [{ fromStep: 1, every: 2 }]
       }
     })
@@ -417,12 +423,169 @@ describe('Game: obstacles (obstacle mode)', () => {
   it('never spawns a cracked obstacle', () => {
     // spawnObstacle always writes a pristine obstacle, so a board of only
     // cracked ones could never occur through play.
-    const game = makeGame({ modeId: 'obstacle', mutateTuning: onlyLevelOne, seed: 31 })
+    const game = makeGame({ modeId: 'obstacle', mutateTuning: obstacleTuning, seed: 31 })
     placeTimes(game, 9)
 
     const cells = cellsOf(game)
     expect(cells.filter((c) => c === CELL_OBSTACLE).length).toBeGreaterThan(0)
     expect(cells.filter((c) => c === CELL_OBSTACLE_CRACKED)).toHaveLength(0)
+  })
+})
+
+describe('Game: the obstacle opening pocket', () => {
+  /** The 3x3 pocket the shipped config leaves open on a 7x10 board. */
+  const POCKET = { x0: 2, y0: 3, x1: 4, y1: 5 }
+  const inPocket = (x: number, y: number): boolean =>
+    x >= POCKET.x0 && x <= POCKET.x1 && y >= POCKET.y0 && y <= POCKET.y1
+
+  it('opens walled in, with only the middle 3x3 playable', () => {
+    const view = makeGame({ modeId: 'obstacle' }).view()
+
+    const obstacles: Array<[number, number]> = []
+    const free: Array<[number, number]> = []
+    for (let y = 0; y < view.height; y++) {
+      for (let x = 0; x < view.width; x++) {
+        const value = view.cells[y * view.width + x]
+        if (value === CELL_OBSTACLE) obstacles.push([x, y])
+        if (value === 0) free.push([x, y])
+      }
+    }
+
+    expect(obstacles).toHaveLength(61)
+    expect(free).toHaveLength(9)
+    expect(free.every(([x, y]) => inPocket(x, y))).toBe(true)
+    expect(view.steps).toBe(0)
+    expect(view.gameOver).toBe(false)
+    // There is room to play, so the run is not over on the first frame.
+    expect(view.boardFull).toBe(false)
+  })
+
+  it('refuses placements outside the pocket and accepts them inside', () => {
+    const game = makeGame({ modeId: 'obstacle', mutateTuning: onlyLevelOne })
+
+    expect(game.canPlaceAt(0, 0)).toBe(false)
+    expect(game.canPlaceAt(3, 2)).toBe(false)
+    expect(game.canPlaceAt(5, 5)).toBe(false)
+    expect(game.canPlaceAt(3, 3)).toBe(true)
+
+    expect(game.placeFromNext(0, 0)).toEqual([{ type: 'invalid', reason: 'cell-occupied' }])
+    expect(eventTypes(game.placeFromNext(3, 3))).toEqual(['placed'])
+  })
+
+  it('leaves the other modes alone', () => {
+    expect(makeGame({ modeId: 'endless' }).view().cells.every((c) => c === 0)).toBe(true)
+    expect(makeGame({ modeId: 'basic' }).view().cells.every((c) => c === 0)).toBe(true)
+  })
+
+  it('takes the pocket size from the tuning data', () => {
+    const game = makeGame({
+      modeId: 'obstacle',
+      mutateTuning: (t) => {
+        t.obstacles.startClear = { width: 1, height: 1 }
+      }
+    })
+    const view = game.view()
+
+    expect(view.cells.filter((c) => c === 0)).toHaveLength(1)
+    // A single centred cell: floor((7-1)/2) = 3, floor((10-1)/2) = 4.
+    expect(game.canPlaceAt(3, 4)).toBe(true)
+    expect(game.canPlaceAt(3, 3)).toBe(false)
+  })
+
+  it('rebuilds the pocket on restart', () => {
+    // Regression guard: restart builds a brand new Board, so an opening that
+    // lived only in the constructor would silently hand the player an empty
+    // board — a far easier game than the one they just lost.
+    const game = makeGame({ modeId: 'obstacle' })
+    game.restart(1234)
+
+    const view = game.view()
+    expect(view.cells.filter((c) => c === CELL_OBSTACLE)).toHaveLength(61)
+    expect(view.cells.filter((c) => c === 0)).toHaveLength(9)
+    expect(view.gameOver).toBe(false)
+  })
+
+  it('is restored by undo, pocket and all', () => {
+    const game = makeGame({ modeId: 'obstacle', mutateTuning: onlyLevelOne })
+    const before = game.snapshot()
+
+    game.placeFromNext(3, 3)
+    expect(game.view().steps).toBe(1)
+
+    game.undo()
+
+    expect(game.snapshot()).toEqual(before)
+    expect(game.view().cells.filter((c) => c === CELL_OBSTACLE)).toHaveLength(61)
+  })
+
+  it('opens a way out: breaking the wall makes the freed cell playable', () => {
+    // Without this the pocket would be a dead end — the whole point of the
+    // opening is that merges along its edge drill outwards.
+    const game = makeGame({ modeId: 'obstacle', mutateTuning: obstacleTuning })
+
+    const obstacles: Array<{ x: number; y: number }> = []
+    for (let y = 0; y < 10; y++) {
+      for (let x = 0; x < 7; x++) {
+        if (!inPocket(x, y) && !(x === 3 && y === 2)) obstacles.push({ x, y })
+      }
+    }
+
+    game.restore(
+      craft(7, 10, {
+        blocks: [
+          { x: 2, y: 3, level: 1 },
+          { x: 3, y: 3, level: 1 }
+        ],
+        obstacles,
+        // The wall cell above the pocket's middle column, one hit from gone.
+        crackedObstacles: [{ x: 3, y: 2 }],
+        buffer: [1, 0, 0]
+      })
+    )
+
+    expect(game.canPlaceAt(3, 2)).toBe(false)
+
+    // Completing a level-1 row along the pocket's top edge blasts the wall.
+    const events = game.placeFromBuffer(0, 4, 3)
+
+    expect(eventTypes(events)).toContain('merged')
+    expect(eventTypes(events)).toContain('obstacleCleared')
+    expect(levelAt(game, 4, 3)).toBe(2)
+    // The freed cell is now part of the playable area.
+    expect(game.canPlaceAt(3, 2)).toBe(true)
+    // ...and the rest of the wall only cracked, so it still blocks.
+    expect(game.canPlaceAt(2, 2)).toBe(false)
+  })
+
+  it('ends the run when the pocket itself fills up', () => {
+    // This is the hazard the pocket creates: obstacles and blocks share the
+    // same nine cells, so a player who never merges is squeezed out rather than
+    // ground down over the rest of the board.
+    const game = makeGame({ modeId: 'obstacle' })
+
+    const obstacles: Array<{ x: number; y: number }> = []
+    const blocks: Array<{ x: number; y: number; level: number }> = []
+    for (let y = 0; y < 10; y++) {
+      for (let x = 0; x < 7; x++) {
+        if (!inPocket(x, y)) {
+          obstacles.push({ x, y })
+          continue
+        }
+        // Checkerboarded levels inside the pocket: no two orthogonally adjacent
+        // cells share a level, so no group of three can form.
+        if (x === 4 && y === 5) continue // the one cell left for the player
+        blocks.push({ x, y, level: (x + y) % 2 === 0 ? 1 : 2 })
+      }
+    }
+
+    game.restore(craft(7, 10, { blocks, obstacles, next: 2 }))
+    // Level 2, matching neither of its two neighbours, so the placement itself
+    // is a clean step and the only thing left to resolve is the full board.
+    const events = game.placeFromNext(4, 5)
+
+    expect(eventTypes(events)).toEqual(['placed', 'gameOver'])
+    expect(game.view().boardFull).toBe(true)
+    expect(game.pullNextToBuffer()).toEqual([{ type: 'invalid', reason: 'game-over' }])
   })
 })
 

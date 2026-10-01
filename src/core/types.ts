@@ -97,6 +97,18 @@ export interface ObstacleBand {
   every: number
 }
 
+/**
+ * Size of the open pocket obstacle mode starts with.
+ *
+ * The board opens walled off by fresh obstacles except for a rectangle of this
+ * size in the middle, so a run begins with almost no room to build and the
+ * player has to break outwards. Sizes larger than the board are clamped to it.
+ */
+export interface StartClearArea {
+  width: number
+  height: number
+}
+
 export interface StepUnlockFallback {
   enabled: boolean
   stepsPerLevel: number
@@ -181,6 +193,8 @@ export interface Tuning {
      * force; there is no spawn at all before the first band starts.
      */
     spawnBands: ObstacleBand[]
+    /** Playable pocket the board opens with; everything else is obstacle. */
+    startClear: StartClearArea
     clearBonus: number
     /**
      * Hits needed to destroy a fresh obstacle. 1 removes the cracked stage

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   describeObstacleRamp,
+  describeStartPocket,
   formatModeDescription,
   loadModes,
   loadTuning
@@ -67,6 +68,27 @@ describe('mode rule text', () => {
     for (const mode of modes) {
       expect(formatModeDescription(mode, tuning)).not.toContain('{')
     }
+  })
+
+  it('announces the opening pocket from the tuning data', () => {
+    const obstacle = modes.find((mode) => mode.id === 'obstacle')!
+    const text = formatModeDescription(obstacle, tuning)
+
+    expect(text).toContain(describeStartPocket(tuning.obstacles.startClear))
+    expect(text).toContain(
+      `${tuning.obstacles.startClear.width}×${tuning.obstacles.startClear.height}`
+    )
+  })
+
+  it('follows a retuned pocket instead of a hardcoded 3×3', () => {
+    const obstacle = modes.find((mode) => mode.id === 'obstacle')!
+    const patched = {
+      ...tuning,
+      obstacles: { ...tuning.obstacles, startClear: { width: 5, height: 4 } }
+    }
+
+    expect(formatModeDescription(obstacle, patched)).toContain('5×4')
+    expect(formatModeDescription(obstacle, patched)).not.toContain('3×3')
   })
 
   it('leaves modes without placeholders untouched', () => {

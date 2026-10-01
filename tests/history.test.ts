@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Game } from '../src/core/game'
 import { History, cloneSnapshot } from '../src/core/history'
 import type { GameSnapshot } from '../src/core/types'
-import { craft, makeGame, onlyLevelOne } from './helpers'
+import { craft, makeGame, onlyLevelOne, openBoard } from './helpers'
 
 /** Deterministic move script: pull a block, then place it. */
 const SCRIPT: Array<[number, number]> = [
@@ -230,7 +230,14 @@ describe('undo: RNG rollback (no rerolling the next block)', () => {
 
 describe('undo: interactions with the rest of the game', () => {
   it('removes an obstacle that the undone placement had spawned', () => {
-    const game = makeGame({ modeId: 'obstacle', mutateTuning: onlyLevelOne, seed: 5 })
+    const game = makeGame({
+      modeId: 'obstacle',
+      seed: 5,
+      mutateTuning: (t) => {
+        onlyLevelOne(t)
+        openBoard(t)
+      }
+    })
 
     // Checkerboard cells (x+y even) are never orthogonally adjacent to each
     // other, so nothing can merge and every placement is a clean step.

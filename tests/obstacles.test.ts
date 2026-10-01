@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { obstacleBandAt, shouldSpawnObstacle } from '../src/core/obstacles'
+import { fillStartObstacles, obstacleBandAt, shouldSpawnObstacle } from '../src/core/obstacles'
+import { Board } from '../src/core/board'
 import { loadTuning } from '../src/core/data'
-import type { ObstacleBand } from '../src/core/types'
+import { CELL_EMPTY, CELL_OBSTACLE } from '../src/core/types'
+import type { ObstacleBand, StartClearArea } from '../src/core/types'
 
 /**
  * The escalating obstacle schedule.
@@ -150,5 +152,111 @@ describe('obstacles: custom schedules', () => {
     const b = spawnsIn(SHIPPED, 95, 110)
     expect(a).toEqual(b)
     expect(shouldSpawnObstacle(SHIPPED, 103)).toBe(shouldSpawnObstacle(SHIPPED, 103))
+  })
+})
+
+describe('obstacles: the opening pocket', () => {
+  const TUNING = loadTuning()
+  const W = TUNING.board.width
+  const H = TUNING.board.height
+
+  function filled(clear: StartClearArea, width = W, height = H): Board {
+    const board = new Board(width, height)
+    fillStartObstacles(board, clear)
+    return board
+  }
+
+  it('walls off everything but a centred pocket on the shipped board', () => {
+    expect(TUNING.obstacles.startClear).toEqual({ width: 3, height: 3 })
+
+    // 7x10 with a 3x3 pocket: the leftover 4 columns/7 rows split 2|2 and 3|4,
+    // so the pocket sits at x 2..4, y 3..5.
+    expect(fillStartObstacles(new Board(W, H), TUNING.obstacles.startClear)).toEqual({
+      x: 2,
+      y: 3,
+      width: 3,
+      height: 3
+    })
+
+    const board = filled(TUNING.obstacles.startClear)
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const inside = x >= 2 && x <= 4 && y >= 3 && y <= 5
+        expect(board.get(x, y), `cell ${x},${y}`).toBe(inside ? CELL_EMPTY : CELL_OBSTACLE)
+      }
+    }
+  })
+
+  it('opens with exactly the pocket left free', () => {
+    const board = filled(TUNING.obstacles.startClear)
+    const pocket = TUNING.obstacles.startClear.width * TUNING.obstacles.startClear.height
+
+    expect(board.countObstacles()).toBe(W * H - pocket)
+    expect(board.emptyPositions()).toHaveLength(pocket)
+    expect(board.hasEmptyCell()).toBe(true)
+  })
+
+  it('puts the odd leftover below and to the right, never above and left', () => {
+    // 8 - 3 = 5, which does not split evenly. Flooring the offset leaves two
+    // columns on the left and three on the right.
+    const board = filled({ width: 3, height: 3 }, 8, 8)
+
+    expect(board.isEmpty(2, 2)).toBe(true)
+    expect(board.isEmpty(4, 4)).toBe(true)
+    expect(board.isObstacle(1, 2)).toBe(true)
+    expect(board.isObstacle(5, 2)).toBe(true)
+    expect(board.isObstacle(2, 5)).toBe(true)
+  })
+
+  it('lets an oversized pocket cover the whole board', () => {
+    // Clamping means "no opening obstacles" needs no second switch: it is just
+    // the degenerate case of a pocket as large as the board.
+    const board = filled({ width: 99, height: 99 })
+
+    expect(board.countObstacles()).toBe(0)
+    expect(board.emptyPositions()).toHaveLength(W * H)
+  })
+
+  it('clamps a thin pocket the other way too', () => {
+    const column = filled({ width: 1, height: 10 })
+    expect(column.countObstacles()).toBe(60)
+    for (let y = 0; y < H; y++) expect(column.isEmpty(3, y), `row ${y}`).toBe(true)
+
+    const row = filled({ width: 7, height: 1 })
+    expect(row.countObstacles()).toBe(63)
+    for (let x = 0; x < W; x++) expect(row.isEmpty(x, 4), `col ${x}`).toBe(true)
+  })
+
+  it('leaves something playable for every pocket the config allows', () => {
+    // A pocket of zero cells is rejected by loadTuning, so the smallest legal
+    // pocket still opens the run with one cell rather than an instant loss.
+    for (const size of [
+      { width: 1, height: 1 },
+      { width: 1, height: 10 },
+      { width: 7, height: 1 }
+    ]) {
+      const board = filled(size)
+      expect(board.hasEmptyCell(), `${size.width}x${size.height}`).toBe(true)
+    }
+  })
+
+  it('is deterministic, so a rewind restores it from the snapshot', () => {
+    expect(Array.from(filled({ width: 3, height: 3 }).cells)).toEqual(
+      Array.from(filled({ width: 3, height: 3 }).cells)
+    )
+  })
+
+  it('writes fresh obstacles, never cracked ones', () => {
+    // A crack means "this took a hit from a merge"; an opening board that
+    // looked pre-damaged would promise the player free progress.
+    const board = filled({ width: 3, height: 3 })
+    const counts = new Map<number, number>()
+    for (const value of Array.from(board.cells)) {
+      counts.set(value, (counts.get(value) ?? 0) + 1)
+    }
+
+    expect(counts.get(CELL_OBSTACLE)).toBe(61)
+    expect(counts.get(CELL_EMPTY)).toBe(9)
+    expect(Array.from(counts.keys()).sort()).toEqual([CELL_OBSTACLE, CELL_EMPTY].sort())
   })
 })
