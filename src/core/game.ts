@@ -309,6 +309,15 @@ export class Game {
         const event = step.events[e]
         if (event.type !== 'merged' && event.type !== 'maxCleared') continue
 
+        // Rule 7: EVERY merge shoves the boss back, whatever it consumed.
+        //
+        // This is deliberately not conditioned on the wound below. Tying the
+        // two together meant a level-1 or level-2 merge — the only merges
+        // available early on — gave the player no counterplay at all, and the
+        // boss simply out-raced them to its next bite. Wounding it is the
+        // separate, stricter rule (level 3 and above).
+        drainActionBar(config, boss)
+
         // `merged` reports the level it consumed as `fromLevel`; `maxCleared`
         // reports it as `level`. Both are the level of the blocks destroyed,
         // which is what decides whether this hit was strong enough to wound.
@@ -341,9 +350,6 @@ export class Game {
           events.push(defeat)
           return { events, over: true }
         }
-
-        // A merge also knocks the boss back, once it is out of the cage.
-        drainActionBar(config, boss)
       }
     }
 

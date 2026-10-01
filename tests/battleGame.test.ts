@@ -171,9 +171,8 @@ describe('Game: battle turn resolution', () => {
     const hurt = events.find((e) => e.type === 'pacmanHurt')
     expect(hurt).toMatchObject({ amount: 9, hp: 31 })
 
-    // Order matters: the merge drains the bar *before* this placement's own
-    // contribution is added, so the wound pushes the boss's next bite further
-    // away rather than tipping it over. 0.9 - 0.5 + 0.5 = 0.9.
+    // Order matters: the merge drains the bar first, then this placement's own
+    // contribution is added. With both at 50% the two cancel out.
     expect(game.view().pacman?.bar).toBeCloseTo(
       0.9 - CONFIG.mergeBarDrain + CONFIG.actionPerPlacement,
       6
@@ -198,6 +197,80 @@ describe('Game: battle turn resolution', () => {
     expect(game.view().pacman?.hp).toBe(40)
   })
 
+  it('drains the action bar on a merge too weak to wound', () => {
+    // Rule separation: knocking the boss back is EVERY merge's job, while
+    // wounding it needs a level-3-or-better merge. Tying the drain to the
+    // damage silently removed the player's only counterplay until they could
+    // build 3s.
+    const game = battleGame()
+    game.restore(
+      battleSnapshot({
+        blocks: [
+          { x: 0, y: FIELD_TOP, level: 1 },
+          { x: 1, y: FIELD_TOP, level: 1 }
+        ],
+        buffer: [1, 0, 0],
+        boss: looseBoss({ hp: 40, maxHp: 40, bar: 0.9 })
+      })
+    )
+
+    const events = game.placeFromBuffer(0, 2, FIELD_TOP)
+
+    // A level-1 triple: no wound...
+    expect(types(events)).not.toContain('pacmanHurt')
+    expect(game.view().pacman?.hp).toBe(40)
+    // ...but the bar still took the hit.
+    expect(game.view().pacman?.bar).toBeCloseTo(
+      0.9 - CONFIG.mergeBarDrain + CONFIG.actionPerPlacement,
+      6
+    )
+  })
+
+  it('drains once per chain link, so a cascade shoves it back harder', () => {
+    const game = battleGame()
+    // (0,3)+(1,3)+placement -> a level-2 at (2,3); that then joins the two 2s
+    // below it -> a level-3. Two links, neither of which consumes a level-3
+    // block, so nothing wounds the boss and the drain is the only effect.
+    game.restore(
+      battleSnapshot({
+        blocks: [
+          { x: 0, y: FIELD_TOP, level: 1 },
+          { x: 1, y: FIELD_TOP, level: 1 },
+          { x: 2, y: FIELD_TOP + 1, level: 2 },
+          { x: 2, y: FIELD_TOP + 2, level: 2 }
+        ],
+        buffer: [1, 0, 0],
+        boss: looseBoss({ hp: 40, maxHp: 40, bar: 1 })
+      })
+    )
+
+    const events = game.placeFromBuffer(0, 2, FIELD_TOP)
+    expect(types(events)).not.toContain('pacmanHurt')
+
+    // A full bar, two drains, then this placement's own contribution.
+    expect(game.view().pacman?.bar).toBeCloseTo(CONFIG.actionPerPlacement, 5)
+  })
+
+  it('does not drain while the boss is still in the cage', () => {
+    // Rule 7 only starts once it has left. Draining in the cage would let the
+    // player stall the opening indefinitely.
+    const game = battleGame()
+    game.restore(
+      battleSnapshot({
+        blocks: [
+          { x: 0, y: FIELD_TOP, level: 1 },
+          { x: 1, y: FIELD_TOP, level: 1 }
+        ],
+        buffer: [1, 0, 0],
+        boss: looseBoss({ hp: 40, maxHp: 40, bar: 0.4, phase: 'cage' })
+      })
+    )
+
+    game.placeFromBuffer(0, 2, FIELD_TOP)
+    // No drain: only the placement's own contribution landed.
+    expect(game.view().pacman?.bar).toBeCloseTo(0.4 + CONFIG.actionPerPlacement, 6)
+  })
+
   it('lets the boss act once the bar fills, healing it from the board', () => {
     const game = battleGame()
     game.restore(
@@ -209,20 +282,21 @@ describe('Game: battle turn resolution', () => {
           { x: 6, y: FIELD_TOP + 2, level: 2 }
         ],
         buffer: [1, 0, 0],
-        boss: looseBoss({ hp: 10, maxHp: 10, bar: CONFIG.actionPerPlacement })
+        // Starts full: the merge drains half, and this placement's own half
+        // refills it, so it acts on this turn.
+        boss: looseBoss({ hp: 10, maxHp: 10, bar: 1 })
       })
     )
 
     const before = game.view()
     const events = game.placeFromBuffer(0, 2, FIELD_TOP)
-    // Two level-1 triples merge; the bar fills and the boss takes its bite.
     expect(types(events)).toContain('pacmanAte')
 
     const after = game.view()
-    expect(after.pacman?.hp).toBeGreaterThan(10)
-    expect(after.pacman?.hp).toBe(before.pacman === null ? 0 : 10 + 2)
+    expect(after.pacman?.hp).toBe(10 + 2)
     // The bar reset when it acted.
     expect(after.pacman?.bar).toBeLessThan(1)
+    expect(before.pacman).not.toBeNull()
   })
 
   it('prefers the killing blow over the boss taking its turn', () => {
@@ -261,7 +335,9 @@ describe('Game: battle turn resolution', () => {
           { x: 1, y: FIELD_TOP, level: 1 }
         ],
         buffer: [1, 0, 0],
-        boss: looseBoss({ hp: 99, maxHp: 99, bar: CONFIG.actionPerPlacement })
+        // Full bar, so after the merge's drain and this placement's own half it
+        // still tips over and bites.
+        boss: looseBoss({ hp: 99, maxHp: 99, bar: 1 })
       })
     )
 
