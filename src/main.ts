@@ -55,6 +55,14 @@ const tuning = loadTuning()
 const modes = loadModes()
 
 /**
+ * Modes the home screen offers.
+ *
+ * Hidden modes stay in the data (so their scores and leaderboard rows keep
+ * resolving) but are never listed or started.
+ */
+const visibleModes: readonly ModeConfig[] = modes.filter((item) => item.hidden !== true)
+
+/**
  * Folder themes (registered in themes.json) plus any zip pack found in
  * src/themes/packs. Both are offered in the settings dropdown.
  */
@@ -251,7 +259,7 @@ function homeBackgroundUrl(): string | null {
 // Game
 // ---------------------------------------------------------------------------
 
-let mode: ModeConfig = modes[0]
+let mode: ModeConfig = visibleModes[0] ?? modes[0]
 let game = new Game({ mode, tuning, seed: makeSeed() })
 let started = false
 
@@ -560,7 +568,7 @@ const home = new HomeScreen({
 
 function homeState(): Parameters<HomeScreen['show']>[0] {
   return {
-    modes,
+    modes: visibleModes,
     bestScores: progressStore.get().bestScores,
     parked: parkedSummary(),
     leaderboard: leaderboardRows,

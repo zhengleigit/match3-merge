@@ -37,3 +37,36 @@ describe('mode rule text', () => {
     expect(formatModeDescription(basic, tuning)).toBe(basic.description)
   })
 })
+
+describe('mode visibility', () => {
+  /**
+   * The home screen offers only the visible modes. Hiding rather than deleting
+   * keeps a mode's config valid, so its saved scores and leaderboard rows still
+   * resolve if it is ever shown again.
+   */
+  it('keeps the hidden mode in the data rather than removing it', () => {
+    const basic = modes.find((mode) => mode.id === 'basic')
+    expect(basic).toBeDefined()
+    expect(basic?.hidden).toBe(true)
+  })
+
+  it('still exposes every mode by id, hidden or not', () => {
+    // Resolving by id is what lets an existing save survive being hidden.
+    expect(modes.map((mode) => mode.id)).toEqual(
+      expect.arrayContaining(['basic', 'battle', 'obstacle', 'endless'])
+    )
+  })
+
+  it('leaves at least one mode on offer', () => {
+    // An all-hidden config would leave the home screen empty with no way to
+    // start, so `loadModes` refuses it outright.
+    expect(modes.filter((mode) => mode.hidden !== true).length).toBeGreaterThan(0)
+  })
+
+  it('does not hide the modes the game boots with', () => {
+    const visible = modes.filter((mode) => mode.hidden !== true)
+    expect(visible.map((mode) => mode.id)).toEqual(
+      expect.arrayContaining(['battle', 'obstacle', 'endless'])
+    )
+  })
+})

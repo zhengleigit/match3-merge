@@ -65,8 +65,19 @@ export interface ModeConfig {
   maxLevelBonus: number
   /** Whether obstacles spawn during play. */
   obstacles: boolean
-  /** Battle mode: a sealed arena with a Pac-Man hunting the board. */
+  /**
+   * Battle mode: a sealed arena with a Pac-Man hunting the board.
+   */
   battle: boolean
+  /**
+   * Kept in the data but not offered on the home screen.
+   *
+   * Hiding rather than deleting keeps the mode's config valid, so its saved
+   * scores and its leaderboard rows stay coherent and re-enabling it is a
+   * one-line change. A hidden mode is still resolved by id, so an existing save
+   * can be resumed if the mode is ever shown again.
+   */
+  hidden?: boolean
   /** Level NUMBER that wins the run (endless: 10 => the 89-point block). */
   winAtLevel: number | null
 }

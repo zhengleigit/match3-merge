@@ -10,6 +10,7 @@
       "maxLevelBonus": 50,
       "obstacles": false,
       "battle": false,
+      "hidden": true,
       "winAtLevel": null
     },
     {

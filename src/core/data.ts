@@ -111,6 +111,12 @@ export function loadModes(): ModeConfig[] {
     }
   }
 
+  // Hiding every mode would leave the home screen empty and the game with no way
+  // to start, and nothing else in the app would report why. Fail loudly instead.
+  if (!modes.some((mode) => mode.hidden !== true)) {
+    fail('at least one mode must be visible (none may set "hidden": true)')
+  }
+
   return modes
 }
 
