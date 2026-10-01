@@ -1,4 +1,4 @@
-import type { ParticleSpec } from '../core/fxMap'
+import type { ParticleSpec, TracerSpec } from '../core/fxMap'
 
 /**
  * Particle system: object pool + typed arrays (structure-of-arrays).
@@ -39,6 +39,13 @@ export class ParticleSystem {
   private readonly gravity: Float32Array
   private readonly hue: Float32Array
   private readonly additive: Uint8Array
+  // Tracers: a particle that travels from an origin to a target. Origins and
+  // targets are their own arrays rather than being packed into the velocity
+  // fields, so a tracer's motion never has to be reverse-engineered later.
+  private readonly ox: Float32Array
+  private readonly oy: Float32Array
+  private readonly tx: Float32Array
+  private readonly ty: Float32Array
 
   private readonly palette = makePalette(72, 62)
   private readonly additivePalette = makePalette(90, 68)
@@ -58,6 +65,10 @@ export class ParticleSystem {
     this.gravity = new Float32Array(this.capacity)
     this.hue = new Float32Array(this.capacity)
     this.additive = new Uint8Array(this.capacity)
+    this.ox = new Float32Array(this.capacity)
+    this.oy = new Float32Array(this.capacity)
+    this.tx = new Float32Array(this.capacity)
+    this.ty = new Float32Array(this.capacity)
   }
 
   get activeCount(): number {
@@ -133,6 +144,49 @@ export class ParticleSystem {
     this.additive[index] = 2
   }
 
+  /**
+   * Fires a volley that travels from one point to another.
+   *
+   * Used so a merge visibly SHOOTS the boss rather than just making it flinch:
+   * the particles leave the merged cell and arrive at the boss, which is what
+   * makes "my merge hurt it" legible without any UI.
+   *
+   * Motion is linear so every shot lands exactly when its life expires.
+   */
+  tracer(spec: TracerSpec, fromX: number, fromY: number, toX: number, toY: number): void {
+    const total = Math.min(spec.count, this.capacity)
+    for (let i = 0; i < total; i++) {
+      const index = this.cursor
+      this.cursor = (this.cursor + 1) % this.capacity
+      if (this.count < this.capacity) this.count++
+
+      // Start from a small disc around the origin so the volley has some body
+      // instead of being a single pixel line.
+      const angle = this.random() * Math.PI * 2
+      const spread = this.range(0, spec.spreadPx)
+      const sx = fromX + Math.cos(angle) * spread
+      const sy = fromY + Math.sin(angle) * spread
+
+      this.ox[index] = sx
+      this.oy[index] = sy
+      this.px[index] = sx
+      this.py[index] = sy
+      this.tx[index] = toX
+      this.ty[index] = toY
+      this.vx[index] = 0
+      this.vy[index] = 0
+      // Staggered so the volley reads as a stream of shots rather than a wall.
+      const life = this.range(spec.durationMs * 0.75, spec.durationMs * 1.25)
+      this.maxLife[index] = life
+      this.life[index] = life
+      this.size[index] = this.range(spec.sizeMin, spec.sizeMax)
+      this.gravity[index] = 0
+      this.hue[index] = spec.hue
+      // 3 = tracer marker
+      this.additive[index] = 3
+    }
+  }
+
   update(dtMs: number): void {
     if (this.count === 0) return
     const dt = dtMs / 1000
@@ -143,8 +197,17 @@ export class ParticleSystem {
       this.life[i] -= dtMs
       if (this.life[i] <= 0) continue
 
-      const isRing = this.additive[i] === 2
-      if (isRing) continue
+      const kind = this.additive[i]
+      if (kind === 2) continue
+
+      if (kind === 3) {
+        // Linear interpolation from origin to target, so arrival coincides with
+        // the end of the particle's life.
+        const progress = 1 - this.life[i] / this.maxLife[i]
+        this.px[i] = this.ox[i] + (this.tx[i] - this.ox[i]) * progress
+        this.py[i] = this.oy[i] + (this.ty[i] - this.oy[i]) * progress
+        continue
+      }
 
       this.vy[i] += this.gravity[i] * dt
       this.px[i] += this.vx[i] * dt
@@ -182,7 +245,7 @@ export class ParticleSystem {
         continue
       }
 
-      const wantAdditive = kind === 1
+      const wantAdditive = kind === 1 || kind === 3
       if (wantAdditive !== modeSet) {
         ctx.globalCompositeOperation = wantAdditive ? 'lighter' : 'source-over'
         modeSet = wantAdditive
@@ -192,7 +255,11 @@ export class ParticleSystem {
       const bucket = ((Math.round(this.hue[i] / 10) % HUE_BUCKETS) + HUE_BUCKETS) % HUE_BUCKETS
       ctx.fillStyle = wantAdditive ? this.additivePalette[bucket] : this.palette[bucket]
 
-      const size = Math.max(1, this.size[i] * (0.4 + 0.6 * t))
+      // Tracers stay bright for their whole flight: they are the readout of
+      // "this merge is hitting the boss", so fading them out early weakens it.
+      const fade = kind === 3 ? 0.55 + 0.45 * t : t
+      const size = Math.max(1, this.size[i] * (0.4 + 0.6 * fade))
+      ctx.globalAlpha = fade
       ctx.fillRect(this.px[i] - size / 2, this.py[i] - size / 2, size, size)
     }
 

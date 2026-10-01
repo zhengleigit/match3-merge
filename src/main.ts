@@ -283,6 +283,13 @@ function applyFx(fx: FxDescriptor): void {
     mergeFx.add(fx.mergeBursts[i])
   }
 
+  for (let i = 0; i < fx.tracers.length; i++) {
+    const shot = fx.tracers[i]
+    const from = boardSpaceToPx(layout, shot.from.x, shot.from.y)
+    const to = boardSpaceToPx(layout, shot.to.x, shot.to.y)
+    particles.tracer(shot, from.x, from.y, to.x, to.y)
+  }
+
   for (let i = 0; i < fx.floaters.length; i++) {
     const float = fx.floaters[i]
     const point = boardSpaceToPx(layout, float.x + 0.5, float.y + 0.5)
@@ -296,14 +303,11 @@ function applyFx(fx: FxDescriptor): void {
 /** Maps a batch of events to effects and plays them. */
 function presentEvents(events: readonly GameEvent[]): void {
   if (events.length === 0) return
-  const boss = game.view().pacman
   applyFx(
     describeEvents(events, {
       density: effectiveDensity(),
       levelHues: fxConfig.levelHues,
-      reducedMotion,
-      // Lets boss effects land on the boss rather than on the merged cells.
-      boss: boss === null ? undefined : { x: boss.x, y: boss.y }
+      reducedMotion
     })
   )
 }

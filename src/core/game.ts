@@ -3,7 +3,6 @@ import {
   advanceBoss,
   applyDamage,
   boardIsCleared,
-  drainActionBar,
   isSealedCell,
   mergeDamage,
   seedArena
@@ -303,20 +302,14 @@ export class Game {
     const events: GameEvent[] = []
     const score = (level: number): number => scoreOfLevel(this.mode.scoreByLevel, level)
 
+    let merged = false
+
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i]
       for (let e = 0; e < step.events.length; e++) {
         const event = step.events[e]
         if (event.type !== 'merged' && event.type !== 'maxCleared') continue
-
-        // Rule 7: EVERY merge shoves the boss back, whatever it consumed.
-        //
-        // This is deliberately not conditioned on the wound below. Tying the
-        // two together meant a level-1 or level-2 merge — the only merges
-        // available early on — gave the player no counterplay at all, and the
-        // boss simply out-raced them to its next bite. Wounding it is the
-        // separate, stricter rule (level 3 and above).
-        drainActionBar(config, boss)
+        merged = true
 
         // `merged` reports the level it consumed as `fromLevel`; `maxCleared`
         // reports it as `level`. Both are the level of the blocks destroyed,
@@ -328,8 +321,12 @@ export class Game {
         const lethal = applyDamage(boss, damage.amount)
         const wound: GameEvent = {
           type: 'pacmanHurt',
+          // The boss is where the damage lands...
           x: boss.x,
           y: boss.y,
+          // ...and the merge cell is where the shot comes from.
+          srcX: event.x,
+          srcY: event.y,
           amount: damage.amount,
           hp: boss.hp
         }
@@ -353,7 +350,9 @@ export class Game {
       }
     }
 
-    const turn = advanceBoss(this.board, config, boss, score)
+    // Merging is the player's defence: a turn that produced one contributes no
+    // action-bar progress, so it buys a turn rather than pushing the boss back.
+    const turn = advanceBoss(this.board, config, boss, score, merged)
     events.push(...turn.events)
 
     if (boardIsCleared(this.board, config)) {

@@ -48,11 +48,13 @@
     "cageBlockCount": 8,
     "start": { "x": 3, "y": 0 },
     "startHp": 1,
-    "actionPerPlacement": 0.5,
-    "mergeBarDrain": 0.5,
+    "_actionComment": "turnsPerAction=3：每 3 次落子它行动一次。mergesDelayAction=true：产生合成的那次落子不给行动条涨进度，所以合成相当于买了一个回合——这是玩家唯一的防御手段。",
+    "turnsPerAction": 3,
+    "mergesDelayAction": true,
+    "_damageComment": "damageFromLevel=1 表示每次合成都能扣血（2 级三连扣 3x2=6，3 级三连扣 9，5 级清场扣 24）。healPerScore=1 表示吃掉 5 级方块回 8 血。",
     "damagePerScore": 1,
     "healPerScore": 1,
-    "damageFromLevel": 3
+    "damageFromLevel": 1
   },
 
   "history": {

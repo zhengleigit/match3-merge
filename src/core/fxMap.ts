@@ -104,6 +104,25 @@ export interface FxDescriptor {
   floaters: FloaterSpec[]
   sounds: SoundSpec[]
   mergeBursts: MergeBurstSpec[]
+  tracers: TracerSpec[]
+}
+
+/**
+ * A volley that travels from one cell to another.
+ *
+ * Board-space on both ends, so the view converts them the same way it converts
+ * a burst centre and the effect lines up at every zoom level.
+ */
+export interface TracerSpec {
+  from: Pos
+  to: Pos
+  count: number
+  durationMs: number
+  hue: number
+  sizeMin: number
+  sizeMax: number
+  /** Radius of the starting disc, in board cells. */
+  spreadPx: number
 }
 
 export interface FxContext {
@@ -143,6 +162,8 @@ interface FxConfig {
   levelHues: number[]
   shake: { maxOffsetPx: number; maxDurationMs: number }
   events: Record<string, EventPreset>
+  /** Projectile defaults, shared by every tracer effect. */
+  tracers: { count: number; durationMs: number; size: [number, number]; spread: number }
 }
 
 interface SfxConfig {
@@ -200,7 +221,7 @@ export function groupCentre(cells: readonly Pos[]): { x: number; y: number } {
 }
 
 function empty(): FxDescriptor {
-  return { particles: [], shake: null, floaters: [], sounds: [], mergeBursts: [] }
+  return { particles: [], shake: null, floaters: [], sounds: [], mergeBursts: [], tracers: [] }
 }
 
 function burstFrom(
@@ -256,6 +277,9 @@ export function describeEvents(
 ): FxDescriptor {
   const out = empty()
   const presetOf = (name: string): EventPreset | undefined => config.events[name]
+  // Reduced motion removes the flight as well as the sparkle: a moving streak is
+  // exactly the kind of effect that setting exists to suppress. The impact burst
+  // and the damage number still land, so the feedback is not lost.
   const density = ctx.reducedMotion ? 0 : ctx.density
   const scale = (count: number): number => Math.round(count * density)
 
@@ -273,11 +297,6 @@ export function describeEvents(
     }
     if (lastShake === null || clamped.strength > lastShake.strength) lastShake = clamped
   }
-
-  // The boss is described to fxMap in board space, so effects that belong on it
-  // can be placed without the rules layer knowing anything about layout.
-  const bossCentre = (): { x: number; y: number } =>
-    ctx.boss === undefined ? { x: 0, y: 0 } : { x: ctx.boss.x, y: ctx.boss.y }
 
   for (let i = 0; i < events.length; i++) {
     const event = events[i]
@@ -370,11 +389,13 @@ export function describeEvents(
 
       case 'pacmanAte': {
         // Two bursts: one where the block was, one at the boss, so the eye can
-        // follow "that block went into it".
+        // follow "that block went into it". The event's own x/y is where the
+        // boss ends up, so there is no need to be told separately where it is.
+        const at = cellCentre(event.x, event.y)
         const preset = presetOf('pacmanAte')
         if (preset !== undefined) {
-          pushBurst(burstFrom(preset, cellCentre(event.x, event.y), 44, scale(preset.count)))
-          pushBurst(burstFrom(preset, bossCentre(), 44, scale(preset.count * 0.5)))
+          pushBurst(burstFrom(preset, at, 44, scale(preset.count)))
+          pushBurst(burstFrom(preset, at, 44, scale(preset.count * 0.5)))
           pushShake(shakeFrom(preset))
         }
         out.sounds.push(sound(event.fromCage ? 'pacmanEat' : 'pacmanBite'))
@@ -387,7 +408,7 @@ export function describeEvents(
       case 'pacmanExited': {
         const preset = presetOf('pacmanExited')
         if (preset !== undefined) {
-          pushBurst(burstFrom(preset, bossCentre(), 20, scale(preset.count)))
+          pushBurst(burstFrom(preset, cellCentre(event.x, event.y), 20, scale(preset.count)))
           pushShake(shakeFrom(preset))
         }
         out.sounds.push(sound('pacmanExit'))
@@ -395,11 +416,28 @@ export function describeEvents(
       }
 
       case 'pacmanHurt': {
-        // The boss is what got hit, so the burst belongs on it, not on the
-        // merge that caused it.
         const preset = presetOf('pacmanHurt')
         if (preset !== undefined) {
-          pushBurst(burstFrom(preset, bossCentre(), 350, scale(preset.count)))
+          // The merge SHOOTS the boss: a volley leaves the merged cell and flies
+          // to it, then a burst lands on impact. Without the flight the wound
+          // reads as unrelated to the move that caused it.
+          const shot = config.tracers
+          const count = scale(shot.count)
+          if (count > 0) {
+            out.tracers.push({
+              from: cellCentre(event.srcX, event.srcY),
+              to: cellCentre(event.x, event.y),
+              count,
+              durationMs: shot.durationMs,
+              // A hot red-orange, matching the damage number's tone.
+              hue: 10,
+              sizeMin: shot.size[0],
+              sizeMax: shot.size[1],
+              spreadPx: shot.spread
+            })
+          }
+          // The impact burst still belongs on the boss.
+          pushBurst(burstFrom(preset, cellCentre(event.x, event.y), 350, scale(preset.count)))
           pushShake(shakeFrom(preset))
         }
         out.sounds.push(sound('pacmanHurt'))
@@ -410,7 +448,7 @@ export function describeEvents(
       case 'pacmanDefeated': {
         const preset = presetOf('pacmanDefeated')
         if (preset !== undefined) {
-          pushBurst(burstFrom(preset, bossCentre(), 150, scale(preset.count)))
+          pushBurst(burstFrom(preset, cellCentre(event.x, event.y), 150, scale(preset.count)))
           pushShake(shakeFrom(preset))
         }
         out.sounds.push(sound('pacmanDefeat'))

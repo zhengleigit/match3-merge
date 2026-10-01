@@ -3,6 +3,9 @@
 
   "maxParticles": 512,
 
+  "_tracersComment": "弹道粒子的公共参数：合成时向吃豆人发射的一串粒子。durationMs 是飞行时长，spread 是出发点的散布半径（格子为单位）。",
+  "tracers": { "count": 10, "durationMs": 240, "size": [3, 6], "spread": 0.18 },
+
   "densityMultipliers": {
     "low": 0.5,
     "medium": 1.0,

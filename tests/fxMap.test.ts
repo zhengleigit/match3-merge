@@ -301,6 +301,16 @@ describe('fxMap: obstacles and other events', () => {
     expect(hit.particles.length).toBeGreaterThan(0)
   })
 
+  it('never produces a tracer unless something is being shot at', () => {
+    const events: GameEvent[] = [
+      { type: 'placed', x: 0, y: 0, level: 1 },
+      { type: 'obstacleHit', x: 1, y: 1 },
+      { type: 'obstacleCleared', x: 1, y: 1, bonus: 1 },
+      { type: 'pacmanAte', x: 1, y: 1, from: { x: 0, y: 0 }, path: [], level: 5, heal: 8, hp: 9, fromCage: true }
+    ]
+    expect(describeEvents(events, ctx()).tracers).toHaveLength(0)
+  })
+
   it('makes the crack a smaller effect than the break', () => {
     const hit = describeEvents([{ type: 'obstacleHit', x: 3, y: 4 }], ctx())
     const cleared = describeEvents([{ type: 'obstacleCleared', x: 3, y: 4, bonus: 1 }], ctx())
@@ -328,6 +338,56 @@ describe('fxMap: obstacles and other events', () => {
     const fx = describeEvents([{ type: 'restarted' }], ctx())
     expect(fx.sounds).toHaveLength(0)
     expect(fx.particles).toHaveLength(0)
+  })
+})
+
+describe('fxMap: the merge shoots the boss', () => {
+  const wound: GameEvent = {
+    type: 'pacmanHurt',
+    // Damage lands on the boss...
+    x: 3,
+    y: 2,
+    // ...and comes from the merge at (0, 5).
+    srcX: 0,
+    srcY: 5,
+    amount: 9,
+    hp: 31
+  }
+
+  it('fires a volley from the merge cell to the boss', () => {
+    const fx = describeEvents([wound], ctx())
+    expect(fx.tracers).toHaveLength(1)
+
+    const shot = fx.tracers[0]
+    // Both ends are cell centres, so the streaks line up at any zoom level.
+    expect(shot.from).toEqual({ x: 0.5, y: 5.5 })
+    expect(shot.to).toEqual({ x: 3.5, y: 2.5 })
+    expect(shot.count).toBeGreaterThan(0)
+    expect(shot.durationMs).toBeGreaterThan(0)
+  })
+
+  it('keeps the impact burst and the damage number on the boss', () => {
+    const fx = describeEvents([wound], ctx())
+    // The burst is what says "it got hit", so it must not be moved to the
+    // source cell along with the volley.
+    expect(fx.particles.length).toBeGreaterThan(0)
+    expect(fx.particles[0].x).toBeCloseTo(3.5, 6)
+    expect(fx.floaters[0].text).toBe('-9')
+    expect(fx.floaters[0].tone).toBe('damage')
+  })
+
+  it('scales the volley with the particle density setting', () => {
+    const low = describeEvents([wound], ctx({ density: 0.5 })).tracers[0]
+    const high = describeEvents([wound], ctx({ density: 1.6 })).tracers[0]
+    expect(high.count).toBeGreaterThan(low.count)
+  })
+
+  it('suppresses the volley under reduced motion', () => {
+    // A streak flying across the board is exactly the kind of motion that
+    // setting exists to remove, but the damage number must survive.
+    const fx = describeEvents([wound], ctx({ reducedMotion: true }))
+    expect(fx.tracers).toHaveLength(0)
+    expect(fx.floaters[0].text).toBe('-9')
   })
 })
 

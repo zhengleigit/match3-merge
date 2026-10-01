@@ -4,7 +4,6 @@ import {
   advanceBoss,
   applyDamage,
   boardIsCleared,
-  drainActionBar,
   isSealedCell,
   mergeDamage,
   seedArena
@@ -124,27 +123,77 @@ describe('battle: sealed zones', () => {
 })
 
 describe('battle: the action bar', () => {
-  it('fills by the configured amount per placement', () => {
+  /** One placement's worth of progress, when the bar is allowed to advance. */
+  const step = 1 / CONFIG.turnsPerAction
+
+  it('fills by one turn per placement and fires on the Nth', () => {
     const { board, boss } = arena()
-    const score = scoreOf
 
-    const first = advanceBoss(board, CONFIG, boss, score)
-    expect(boss.bar).toBeCloseTo(CONFIG.actionPerPlacement, 6)
-    expect(first.events).toHaveLength(0)
+    for (let i = 1; i < CONFIG.turnsPerAction; i++) {
+      const result = advanceBoss(board, CONFIG, boss, scoreOf, false)
+      expect(result.events).toHaveLength(0)
+      expect(boss.bar).toBeCloseTo(step * i, 6)
+    }
 
-    const second = advanceBoss(board, CONFIG, boss, score)
-    expect(second.events).toHaveLength(1)
+    const final = advanceBoss(board, CONFIG, boss, scoreOf, false)
+    expect(final.events).toHaveLength(1)
     // Acting empties the bar, and a full bar never banks a second action.
     expect(boss.bar).toBe(0)
   })
 
-  it('takes exactly two placements per action at the shipped rate', () => {
-    expect(CONFIG.actionPerPlacement).toBe(0.5)
+  it('acts once every three turns as shipped', () => {
+    expect(CONFIG.turnsPerAction).toBe(3)
+  })
+
+  it('acts on exactly the Nth turn for every plausible N', () => {
+    // Regression guard for the floating-point trap: the bar accumulates
+    // 1 / turnsPerAction, and 1/3 + 1/3 + 1/3 is 0.9999999999999999 in binary
+    // floating point. Without a tolerance it skipped that turn and fired on the
+    // next one, so "every 3 turns" silently became "every 4".
+    for (let n = 2; n <= 8; n++) {
+      const { board, boss } = arena()
+      const config: BattleConfig = { ...CONFIG, turnsPerAction: n }
+
+      let firedOn = 0
+      for (let turn = 1; turn <= n * 3; turn++) {
+        const result = advanceBoss(board, config, boss, scoreOf, false)
+        if (result.events.length > 0 && firedOn === 0) firedOn = turn
+      }
+      expect(firedOn, `turnsPerAction ${n}`).toBe(n)
+    }
+  })
+
+  it('gives no progress at all on a placement that merged', () => {
+    // The defence mechanic: a merge buys a turn. It must not push the bar
+    // backwards, or the bar could be driven to zero and the boss stalled for
+    // good; it simply does nothing.
+    const { board, boss } = arena()
+    boss.bar = 0.5
+
+    advanceBoss(board, CONFIG, boss, scoreOf, true)
+    expect(boss.bar).toBe(0.5)
+  })
+
+  it('lets merges hold the bar off indefinitely', () => {
+    const { board, boss } = arena()
+    for (let i = 0; i < 40; i++) advanceBoss(board, CONFIG, boss, scoreOf, true)
+    expect(boss.bar).toBe(0)
+  })
+
+  it('can be turned off, so every placement counts', () => {
+    const { board, boss } = arena()
+    const alwaysCounts: BattleConfig = { ...CONFIG, mergesDelayAction: false }
+
+    let fired = 0
+    for (let i = 0; i < alwaysCounts.turnsPerAction; i++) {
+      fired += advanceBoss(board, alwaysCounts, boss, scoreOf, true).events.length
+    }
+    expect(fired).toBe(1)
   })
 
   it('never overflows past one, so an action can never be stored up', () => {
     const { board, boss } = arena()
-    for (let i = 0; i < 3; i++) advanceBoss(board, CONFIG, boss, scoreOf)
+    for (let i = 0; i < 5; i++) advanceBoss(board, CONFIG, boss, scoreOf, false)
     expect(boss.bar).toBeGreaterThanOrEqual(0)
     expect(boss.bar).toBeLessThanOrEqual(1)
   })
@@ -156,7 +205,7 @@ describe('battle: eating in the cage', () => {
     boss.bar = 1
 
     const before = cageFood(board)
-    const result = advanceBoss(board, CONFIG, boss, scoreOf)
+    const result = advanceBoss(board, CONFIG, boss, scoreOf, false)
     const ate = result.events[0]
 
     expect(ate.type).toBe('pacmanAte')
@@ -178,7 +227,7 @@ describe('battle: eating in the cage', () => {
     const { board, boss } = arena()
     for (let i = 0; i < CONFIG.cageBlockCount; i++) {
       boss.bar = 1
-      advanceBoss(board, CONFIG, boss, scoreOf)
+      advanceBoss(board, CONFIG, boss, scoreOf, false)
     }
 
     expect(cageFood(board)).toBe(0)
@@ -193,11 +242,11 @@ describe('battle: eating in the cage', () => {
     const { board, boss } = arena()
     for (let i = 0; i < CONFIG.cageBlockCount; i++) {
       boss.bar = 1
-      advanceBoss(board, CONFIG, boss, scoreOf)
+      advanceBoss(board, CONFIG, boss, scoreOf, false)
     }
 
     boss.bar = 1
-    const exit = advanceBoss(board, CONFIG, boss, scoreOf)
+    const exit = advanceBoss(board, CONFIG, boss, scoreOf, false)
     expect(exit.events[0].type).toBe('pacmanExited')
     expect(boss.phase).toBe('board')
     expect(boss.x).toBe(CONFIG.gapX)
@@ -223,7 +272,7 @@ describe('battle: eating on the board', () => {
     const before = board.countBlocksInRows(CONFIG.wallRow + 1, board.height - 1)
     boss.bar = 1
 
-    const result = advanceBoss(board, CONFIG, boss, scoreOf)
+    const result = advanceBoss(board, CONFIG, boss, scoreOf, false)
     const ate = result.events[0]
     expect(ate.type).toBe('pacmanAte')
     if (ate.type !== 'pacmanAte') return
@@ -258,23 +307,21 @@ describe('battle: eating on the board', () => {
 })
 
 describe('battle: merge damage', () => {
-  it('ignores merges that consume nothing above the threshold level', () => {
-    // 1s and 2s are below damageFromLevel: they must not chip the boss, or the
-    // player would whittle it down with trivial merges.
-    expect(mergeDamage(CONFIG, 1, 3, scoreOf).dealt).toBe(false)
-    expect(mergeDamage(CONFIG, 2, 3, scoreOf).dealt).toBe(false)
-    expect(CONFIG.damageFromLevel).toBe(3)
+  it('lets even a level-1 merge hurt the boss', () => {
+    // `damageFromLevel` ships at 1, so there is no free merge: every one of them
+    // chips the boss.
+    expect(CONFIG.damageFromLevel).toBe(1)
+    expect(mergeDamage(CONFIG, 1, 3, scoreOf).dealt).toBe(true)
+    expect(mergeDamage(CONFIG, 2, 3, scoreOf).dealt).toBe(true)
   })
 
   it('deals the consumed score as damage', () => {
-    // Three level-3 blocks consumed -> 3 x 3 = 9 points of damage.
-    const three = mergeDamage(CONFIG, 3, 3, scoreOf)
-    expect(three.dealt).toBe(true)
-    expect(three.amount).toBe(9)
-
+    // Three level-1 blocks -> 3 x 1 = 3 points.
+    expect(mergeDamage(CONFIG, 1, 3, scoreOf).amount).toBe(3)
+    // Three level-3 blocks -> 3 x 3 = 9 points.
+    expect(mergeDamage(CONFIG, 3, 3, scoreOf).amount).toBe(9)
     // A 5-level clear is the heaviest single blow: 3 x 8 = 24.
-    const clear = mergeDamage(CONFIG, 5, 3, scoreOf)
-    expect(clear.amount).toBe(24)
+    expect(mergeDamage(CONFIG, 5, 3, scoreOf).amount).toBe(24)
   })
 
   it('scales with how many blocks were consumed', () => {
@@ -292,30 +339,12 @@ describe('battle: merge damage', () => {
   })
 })
 
-describe('battle: action bar drain', () => {
-  it('does nothing while the boss is still in the cage', () => {
-    // Draining during the cage phase would let the player stall the opening.
-    const { boss } = arena()
-    boss.bar = 0.8
-    drainActionBar(CONFIG, boss)
-    expect(boss.bar).toBe(0.8)
-  })
-
-  it('removes the configured fraction once the boss is out', () => {
-    const { boss } = arena()
-    boss.phase = 'board'
-    boss.bar = 0.9
-    drainActionBar(CONFIG, boss)
-    expect(boss.bar).toBeCloseTo(0.4, 6)
-  })
-
-  it('never goes below zero', () => {
-    const { boss } = arena()
-    boss.phase = 'board'
-    boss.bar = 0.1
-    drainActionBar(CONFIG, boss)
-    drainActionBar(CONFIG, boss)
-    expect(boss.bar).toBe(0)
+describe('battle: the bar is not touched by merges in any other way', () => {
+  it('has no action-bar drain left in the rules', () => {
+    // The old model pushed the bar backwards on a merge. It was replaced by
+    // "a merge adds nothing", which is what the player actually asked for, so
+    // the drain function is gone rather than merely unused.
+    expect('drainActionBar' in ({} as Record<string, unknown>)).toBe(false)
   })
 })
 

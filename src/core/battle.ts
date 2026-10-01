@@ -83,6 +83,17 @@ export function seedArena(
   }
 }
 
+/**
+ * Tolerance for "the action bar is full".
+ *
+ * The bar accumulates `1 / turnsPerAction`, and that does NOT sum to exactly 1
+ * in binary floating point: 1/3 + 1/3 + 1/3 lands on 0.9999999999999999. Without
+ * a tolerance the boss would skip that turn and act on the FOURTH placement
+ * instead of the third, quietly turning "every 3 turns" into "every 4" for any
+ * `turnsPerAction` that is not a power of two.
+ */
+const FULL_EPSILON = 1e-9
+
 /** Cage cells that still hold food. */
 function cageFoodPositions(board: Board, config: BattleConfig): Pos[] {
   const out: Pos[] = []
@@ -271,20 +282,28 @@ export interface BossTurnResult {
 }
 
 /**
- * Fills the action bar by `actionPerPlacement` and, if that fills it, lets the
- * boss act once.
+ * Fills the action bar and, if that fills it, lets the boss act once.
  *
- * Acting is deliberately a single step per turn: a full bar does not carry over
- * into a second action, so the bar can never bank more than one move.
+ * `merged` is whether the placement that just resolved produced a merge. With
+ * `mergesDelayAction` on (the default) such a placement contributes nothing, so
+ * a merge effectively buys the player a turn — that is the whole defence
+ * mechanic, and it is a delay rather than a push backwards so the bar can never
+ * be driven below zero or used to stall the boss forever.
+ *
+ * Acting is a single step: a full bar does not carry over into a second action.
  */
 export function advanceBoss(
   board: Board,
   config: BattleConfig,
   boss: PacManState,
-  scoreOfLevel: (level: number) => number
+  scoreOfLevel: (level: number) => number,
+  merged: boolean
 ): BossTurnResult {
-  boss.bar = Math.min(1, boss.bar + config.actionPerPlacement)
-  if (boss.bar < 1) return { events: [], defeated: false }
+  const skips = merged && config.mergesDelayAction
+  const gain = skips ? 0 : 1 / config.turnsPerAction
+
+  boss.bar = Math.min(1, boss.bar + gain)
+  if (boss.bar < 1 - FULL_EPSILON) return { events: [], defeated: false }
 
   boss.bar = 0
   return { events: [act(board, config, boss, scoreOfLevel)], defeated: false }
@@ -395,6 +414,8 @@ export interface MergeDamage {
  * The score is the merge's own consumption (`count * scoreOfLevel(level)`), not
  * the turn's total: a 5-level clear's flat bonus is deliberately excluded, so a
  * single clear is the heaviest possible blow rather than an instant kill.
+ *
+ * `damageFromLevel` gates it and defaults to 1, so every merge counts.
  */
 export function mergeDamage(
   config: BattleConfig,
@@ -407,17 +428,6 @@ export function mergeDamage(
   const score = consumed * scoreOfLevel(level)
   const amount = Math.round(score * config.damagePerScore)
   return { amount, dealt: amount > 0 }
-}
-
-/**
- * Drains the action bar after a merge, once the boss is out of the cage.
- *
- * This is what gives the player a way to fight back: without it, every
- * placement would bring the boss's next bite closer with no counterplay.
- */
-export function drainActionBar(config: BattleConfig, boss: PacManState): void {
-  if (boss.phase === 'cage') return
-  boss.bar = Math.max(0, boss.bar - config.mergeBarDrain)
 }
 
 /** Applies damage and reports whether it was lethal. */

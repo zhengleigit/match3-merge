@@ -99,18 +99,27 @@ export interface BattleConfig {
   start: { x: number; y: number }
   /** Starting hit points. */
   startHp: number
-  /** Action bar gained per placement, as a fraction of a full bar. */
-  actionPerPlacement: number
   /**
-   * Fraction of a full bar removed by each merge once the boss has left the
-   * cage. The player's only way to slow it down.
+   * Placements needed to fill the action bar, i.e. the boss acts once every N
+   * placements. Fractional values are allowed.
    */
-  mergeBarDrain: number
+  turnsPerAction: number
+  /**
+   * When true, a placement that produced a merge adds NO action-bar progress.
+   *
+   * This is what turns merging into the player's defence: it does not push the
+   * boss backwards, it buys a turn. Set to false and the boss simply acts every
+   * `turnsPerAction` placements regardless of how well the player plays.
+   */
+  mergesDelayAction: boolean
   /** HP lost per point of score in a damaging merge. */
   damagePerScore: number
   /** HP gained per point of score of an eaten block. */
   healPerScore: number
-  /** Minimum level a merge must consume before it hurts the boss. */
+  /**
+   * Minimum level a merge must consume before it hurts the boss.
+   * 1 means every merge hurts it.
+   */
   damageFromLevel: number
 }
 
@@ -262,8 +271,20 @@ export type GameEvent =
       /** True while it was still eating its way out of the cage. */
       fromCage: boolean
     }
-  /** A merge (consuming a block of at least `damageFromLevel`) wounded the boss. */
-  | { type: 'pacmanHurt'; x: number; y: number; amount: number; hp: number }
+  /**
+   * A merge wounded the boss.
+   * `x`/`y` is the boss (where the damage lands); `srcX`/`srcY` is the merge
+   * that caused it, so the view can send particles from one to the other.
+   */
+  | {
+      type: 'pacmanHurt'
+      x: number
+      y: number
+      srcX: number
+      srcY: number
+      amount: number
+      hp: number
+    }
   /** The boss's hp hit zero: the run is won. */
   | { type: 'pacmanDefeated'; x: number; y: number; hp: number; score: number }
   | { type: 'obstacleSpawned'; x: number; y: number }

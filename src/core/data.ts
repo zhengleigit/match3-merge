@@ -62,11 +62,8 @@ export function loadTuning(): Tuning {
   if (battle.startHp < 1) {
     fail('battle.startHp must be at least 1')
   }
-  if (battle.actionPerPlacement <= 0) {
-    fail('battle.actionPerPlacement must be positive')
-  }
-  if (battle.mergeBarDrain < 0) {
-    fail('battle.mergeBarDrain must not be negative')
+  if (battle.turnsPerAction <= 0) {
+    fail('battle.turnsPerAction must be positive (it is how many placements fill the bar)')
   }
   if (battle.damageFromLevel < 1) {
     fail('battle.damageFromLevel must be at least 1')
