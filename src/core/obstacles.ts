@@ -1,6 +1,12 @@
 import type { Board } from './board'
 import type { Rng } from './rng'
-import { CELL_EMPTY, CELL_OBSTACLE, CELL_OBSTACLE_CRACKED, type Pos } from './types'
+import {
+  CELL_EMPTY,
+  CELL_OBSTACLE,
+  CELL_OBSTACLE_CRACKED,
+  type ObstacleBand,
+  type Pos
+} from './types'
 
 /**
  * Obstacles (obstacle mode).
@@ -26,6 +32,43 @@ export function spawnObstacle(board: Board, rng: Rng): Pos | null {
   const spot = empties[rng.int(empties.length)]
   board.set(spot.x, spot.y, CELL_OBSTACLE)
   return spot
+}
+
+/**
+ * The band of the spawn schedule in force at `steps`, or null before the first
+ * band begins.
+ *
+ * Bands are ordered by `fromStep`; the last one at or below `steps` wins. The
+ * result is a pure function of the step count, so undo needs no extra state to
+ * restore the correct rate — rewinding the step counter rewinds the schedule.
+ */
+export function obstacleBandAt(
+  bands: readonly ObstacleBand[],
+  steps: number
+): ObstacleBand | null {
+  let active: ObstacleBand | null = null
+  for (let i = 0; i < bands.length; i++) {
+    if (steps >= bands[i].fromStep) active = bands[i]
+    else break
+  }
+  return active
+}
+
+/**
+ * Whether a placement ending on `steps` should drop an obstacle.
+ *
+ * Counting restarts at the active band's own first step. Anchoring to the run
+ * instead would make "every 2 steps from step 101" fire on step 102, 104, … —
+ * i.e. tied to the parity of the run rather than to the band, so the first
+ * spawn of a band could arrive one step late without any way to see why.
+ */
+export function shouldSpawnObstacle(bands: readonly ObstacleBand[], steps: number): boolean {
+  const band = obstacleBandAt(bands, steps)
+  if (band === null) return false
+  if (band.every <= 0) return false
+
+  const withinBand = steps - band.fromStep + 1
+  return withinBand % band.every === 0
 }
 
 export interface ObstacleDamageOptions {

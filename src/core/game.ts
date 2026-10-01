@@ -9,7 +9,7 @@ import {
 } from './battle'
 import { History, cloneSnapshot } from './history'
 import { resolveCascade, scoreOfLevel, type CascadeOptions } from './merge'
-import { spawnObstacle } from './obstacles'
+import { shouldSpawnObstacle, spawnObstacle } from './obstacles'
 import { Rng, makeSeed } from './rng'
 import { pickSpawnLevel, stepUnlockLevel } from './spawn'
 import {
@@ -548,7 +548,9 @@ export class Game {
 
   private maybeSpawnObstacle(): GameEvent[] {
     if (!this.mode.obstacles) return []
-    if (this.steps % this.tuning.obstacles.spawnEverySteps !== 0) return []
+    // The rate escalates with the step count, so which interval applies is a
+    // pure function of `steps`.
+    if (!shouldSpawnObstacle(this.tuning.obstacles.spawnBands, this.steps)) return []
 
     const spot = spawnObstacle(this.board, this.rng)
     if (spot === null) return []

@@ -324,12 +324,12 @@ describe('Game: obstacles (obstacle mode)', () => {
     expect(cellsOf(game).filter((c) => c === -1)).toHaveLength(3)
   })
 
-  it('takes the interval from the tuning data, not from the code', () => {
+  it('takes the schedule from the tuning data, not from the code', () => {
     const game = makeGame({
       modeId: 'obstacle',
       mutateTuning: (t) => {
         onlyLevelOne(t)
-        t.obstacles.spawnEverySteps = 2
+        t.obstacles.spawnBands = [{ fromStep: 1, every: 2 }]
       }
     })
     const log = placeTimes(game, 4)

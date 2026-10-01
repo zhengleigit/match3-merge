@@ -82,6 +82,21 @@ export interface ModeConfig {
   winAtLevel: number | null
 }
 
+/**
+ * One band of the obstacle spawn schedule.
+ *
+ * Obstacles get more frequent as a run goes on, so the rate is a short table of
+ * "from this step onwards, spawn one every N steps" rather than a single
+ * number. Counting restarts at each band's own first step, so "every 2" means
+ * every 2 steps of that band rather than every even-numbered step of the run.
+ */
+export interface ObstacleBand {
+  /** First step number this rate applies from, inclusive. */
+  fromStep: number
+  /** Spawn one obstacle every N steps within the band. */
+  every: number
+}
+
 export interface StepUnlockFallback {
   enabled: boolean
   stepsPerLevel: number
@@ -160,7 +175,12 @@ export interface Tuning {
   }
   cascade: { enabled: boolean }
   obstacles: {
-    spawnEverySteps: number
+    /**
+     * Escalating spawn schedule, ordered by `fromStep`. The band whose
+     * `fromStep` is the highest one not above the current step is the one in
+     * force; there is no spawn at all before the first band starts.
+     */
+    spawnBands: ObstacleBand[]
     clearBonus: number
     /**
      * Hits needed to destroy a fresh obstacle. 1 removes the cracked stage

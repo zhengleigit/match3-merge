@@ -33,8 +33,12 @@
   },
 
   "obstacles": {
-    "_comment": "hits=2: a merge next to an obstacle cracks it, a second merge breaks it. breakOutrightAtMaxLevel lets a max-level (5-level) clear destroy obstacles in one hit instead. clearBonus is paid only when an obstacle is actually destroyed, not when it cracks.",
-    "spawnEverySteps": 3,
+    "_comment": "spawnBands: 障碍生成间隔随步数递增的时间表，按 fromStep 升序。每个档位内部从头计数，所以“每 2 步”指的是“这个档位里每 2 步”，而不是“全局偶数步”。hits=2：相邻合成先把障碍打裂，再来一次才炸。breakOutrightAtMaxLevel 让 5 级整团清场一击必炸。clearBonus 只在真的炸掉时给分，打裂不给。",
+    "spawnBands": [
+      { "fromStep": 1, "every": 3 },
+      { "fromStep": 101, "every": 2 },
+      { "fromStep": 201, "every": 1 }
+    ],
     "clearBonus": 1,
     "hits": 2,
     "breakOutrightAtMaxLevel": true

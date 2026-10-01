@@ -1,7 +1,7 @@
 import rawModes from '../data/modes.json'
 import rawThemes from '../data/themes.json'
 import rawTuning from '../data/tuning.json'
-import type { ModeConfig, ThemeEntry, ThemesConfig, Tuning } from './types'
+import type { ModeConfig, ObstacleBand, ThemeEntry, ThemesConfig, Tuning } from './types'
 
 /**
  * Loads and validates the data-driven config. Every tunable number in the game
@@ -31,8 +31,25 @@ export function loadTuning(): Tuning {
   if (tuning.history.limit <= 0) {
     fail('history.limit must be positive')
   }
-  if (tuning.obstacles.spawnEverySteps <= 0) {
-    fail('obstacles.spawnEverySteps must be positive')
+  const bands = tuning.obstacles.spawnBands
+  if (!Array.isArray(bands) || bands.length === 0) {
+    fail('obstacles.spawnBands must define at least one band')
+  }
+  for (let i = 0; i < bands.length; i++) {
+    if (!Number.isInteger(bands[i].fromStep) || bands[i].fromStep < 1) {
+      fail('obstacles.spawnBands[].fromStep must be an integer of at least 1')
+    }
+    if (!Number.isInteger(bands[i].every) || bands[i].every < 1) {
+      fail('obstacles.spawnBands[].every must be an integer of at least 1')
+    }
+    // Ordered and non-overlapping, so "which band is in force" is unambiguous.
+    // A later band with a smaller `fromStep` would simply never apply.
+    if (i > 0 && bands[i].fromStep <= bands[i - 1].fromStep) {
+      fail('obstacles.spawnBands must be ordered by strictly increasing fromStep')
+    }
+  }
+  if (bands[0].fromStep !== 1) {
+    fail('obstacles.spawnBands must start at fromStep 1, or no obstacle ever spawns')
   }
   // The rules only define two obstacle states (fresh and cracked), so a higher
   // hit count would have nowhere to store the extra damage. Fail loudly rather
@@ -155,6 +172,25 @@ export function findTheme(themes: readonly ThemeEntry[], id: string): ThemeEntry
 }
 
 /**
+ * Human-readable form of the obstacle spawn schedule.
+ *
+ * Generated from the data rather than written into the mode description, for
+ * the same reason the old interval was: a hand-written "每 3 步" silently goes
+ * stale the moment the schedule is retuned, and the rules line is the only
+ * place the player can learn the rate.
+ */
+export function describeObstacleRamp(bands: readonly ObstacleBand[]): string {
+  const parts: string[] = []
+  for (let i = 0; i < bands.length; i++) {
+    const band = bands[i]
+    const rate = band.every === 1 ? '每步' : `每 ${band.every} 步`
+    // The first band spans the opening, so its start needs no mention.
+    parts.push(i === 0 && band.fromStep === 1 ? rate : `第 ${band.fromStep} 步起${rate}`)
+  }
+  return parts.join('，')
+}
+
+/**
  * Mode rule text with its tunable numbers filled in.
  *
  * Rule lines embed values that live in tuning.json ("every N steps"). Writing
@@ -163,5 +199,7 @@ export function findTheme(themes: readonly ThemeEntry[], id: string): ThemeEntry
  * placeholder and the value is substituted here.
  */
 export function formatModeDescription(mode: ModeConfig, tuning: Tuning): string {
-  return mode.description.replace(/\{obstacleEvery\}/g, String(tuning.obstacles.spawnEverySteps))
+  return mode.description
+    .replace(/\{obstacleRamp\}/g, describeObstacleRamp(tuning.obstacles.spawnBands))
+    .replace(/\{obstacleEvery\}/g, String(tuning.obstacles.spawnBands[0]?.every ?? 0))
 }
