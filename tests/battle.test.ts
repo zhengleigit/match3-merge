@@ -125,14 +125,14 @@ describe('battle: sealed zones', () => {
 
 describe('battle: the action bar', () => {
   it('fills by the configured amount per placement', () => {
-    const { board, boss, rng } = arena()
+    const { board, boss } = arena()
     const score = scoreOf
 
-    const first = advanceBoss(board, CONFIG, boss, score, (n) => rng.int(n))
+    const first = advanceBoss(board, CONFIG, boss, score)
     expect(boss.bar).toBeCloseTo(CONFIG.actionPerPlacement, 6)
     expect(first.events).toHaveLength(0)
 
-    const second = advanceBoss(board, CONFIG, boss, score, (n) => rng.int(n))
+    const second = advanceBoss(board, CONFIG, boss, score)
     expect(second.events).toHaveLength(1)
     // Acting empties the bar, and a full bar never banks a second action.
     expect(boss.bar).toBe(0)
@@ -143,8 +143,8 @@ describe('battle: the action bar', () => {
   })
 
   it('never overflows past one, so an action can never be stored up', () => {
-    const { board, boss, rng } = arena()
-    for (let i = 0; i < 3; i++) advanceBoss(board, CONFIG, boss, scoreOf, (n) => rng.int(n))
+    const { board, boss } = arena()
+    for (let i = 0; i < 3; i++) advanceBoss(board, CONFIG, boss, scoreOf)
     expect(boss.bar).toBeGreaterThanOrEqual(0)
     expect(boss.bar).toBeLessThanOrEqual(1)
   })
@@ -152,11 +152,11 @@ describe('battle: the action bar', () => {
 
 describe('battle: eating in the cage', () => {
   it('eats a cage block, gains its score as hp, and moves onto it', () => {
-    const { board, boss, rng } = arena()
+    const { board, boss } = arena()
     boss.bar = 1
 
     const before = cageFood(board)
-    const result = advanceBoss(board, CONFIG, boss, scoreOf, (n) => rng.int(n))
+    const result = advanceBoss(board, CONFIG, boss, scoreOf)
     const ate = result.events[0]
 
     expect(ate.type).toBe('pacmanAte')
@@ -175,10 +175,10 @@ describe('battle: eating in the cage', () => {
   })
 
   it('empties the cage and heads for the gap on the last bite', () => {
-    const { board, boss, rng } = arena()
+    const { board, boss } = arena()
     for (let i = 0; i < CONFIG.cageBlockCount; i++) {
       boss.bar = 1
-      advanceBoss(board, CONFIG, boss, scoreOf, (n) => rng.int(n))
+      advanceBoss(board, CONFIG, boss, scoreOf)
     }
 
     expect(cageFood(board)).toBe(0)
@@ -190,14 +190,14 @@ describe('battle: eating in the cage', () => {
   })
 
   it('walks to the gap and then out onto the board', () => {
-    const { board, boss, rng } = arena()
+    const { board, boss } = arena()
     for (let i = 0; i < CONFIG.cageBlockCount; i++) {
       boss.bar = 1
-      advanceBoss(board, CONFIG, boss, scoreOf, (n) => rng.int(n))
+      advanceBoss(board, CONFIG, boss, scoreOf)
     }
 
     boss.bar = 1
-    const exit = advanceBoss(board, CONFIG, boss, scoreOf, (n) => rng.int(n))
+    const exit = advanceBoss(board, CONFIG, boss, scoreOf)
     expect(exit.events[0].type).toBe('pacmanExited')
     expect(boss.phase).toBe('board')
     expect(boss.x).toBe(CONFIG.gapX)
@@ -219,11 +219,11 @@ describe('battle: eating on the board', () => {
   }
 
   it('eats a board block and heals by its value', () => {
-    const { board, boss, rng } = loose()
+    const { board, boss } = loose()
     const before = board.countBlocksInRows(CONFIG.wallRow + 1, board.height - 1)
     boss.bar = 1
 
-    const result = advanceBoss(board, CONFIG, boss, scoreOf, (n) => rng.int(n))
+    const result = advanceBoss(board, CONFIG, boss, scoreOf)
     const ate = result.events[0]
     expect(ate.type).toBe('pacmanAte')
     if (ate.type !== 'pacmanAte') return

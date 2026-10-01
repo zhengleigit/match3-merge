@@ -347,7 +347,7 @@ export class Game {
       }
     }
 
-    const turn = advanceBoss(this.board, config, boss, score, (n) => this.rng.int(n))
+    const turn = advanceBoss(this.board, config, boss, score)
     events.push(...turn.events)
 
     if (boardIsCleared(this.board, config)) {

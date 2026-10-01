@@ -39,6 +39,7 @@ import {
 import { ParticleSystem } from './view/particles'
 import { MergeFxSystem } from './view/mergeFx'
 import { CascadePlayer } from './view/cascadePlayer'
+import { PacManAnimator } from './view/pacmanAnimator'
 import { render, type RenderState } from './view/renderer'
 import { Shake } from './view/shake'
 import { SpriteStyles } from './view/sprites'
@@ -157,6 +158,7 @@ const particles = new ParticleSystem(fxConfig.maxParticles)
 const floaters = new FloaterSystem()
 const mergeFx = new MergeFxSystem()
 const cascadePlayer = new CascadePlayer()
+const pacmanAnimator = new PacManAnimator()
 const shake = new Shake()
 const audio = new AudioEngine()
 
@@ -315,6 +317,36 @@ const CASCADE_OWNED: ReadonlySet<GameEvent['type']> = new Set([
 ])
 
 /**
+ * Effects waiting for the moment they should actually be seen.
+ *
+ * The rules resolve a whole turn instantly, but the boss is drawn walking to its
+ * food over a few hundred milliseconds. Firing its bite effects immediately
+ * would show the particles and the score before the sprite got there, so the
+ * bite is held back until it arrives.
+ */
+const pendingFx: Array<{ atMs: number; events: GameEvent[] }> = []
+
+function scheduleFx(events: readonly GameEvent[], afterMs: number): void {
+  if (events.length === 0) return
+  pendingFx.push({ atMs: performance.now() + afterMs, events: [...events] })
+}
+
+function flushPendingFx(nowMs: number): void {
+  for (let i = pendingFx.length - 1; i >= 0; i--) {
+    if (pendingFx[i].atMs > nowMs) continue
+    const due = pendingFx.splice(i, 1)[0]
+    presentEvents(due.events)
+  }
+}
+
+/** A boss action that travels: its effects wait for the journey to finish. */
+type JourneyEvent = Extract<GameEvent, { type: 'pacmanAte' } | { type: 'pacmanExited' }>
+
+function isJourney(event: GameEvent): event is JourneyEvent {
+  return event.type === 'pacmanAte' || event.type === 'pacmanExited'
+}
+
+/**
  * Presents one move.
  *
  * When the move triggered an automatic chain, the merges are NOT played all at
@@ -325,19 +357,36 @@ const CASCADE_OWNED: ReadonlySet<GameEvent['type']> = new Set([
 function present(events: readonly GameEvent[]): void {
   const cascade = events.find((event) => event.type === 'cascadeSteps')
 
+  // Start the boss walking before anything else, so its journey overlaps the
+  // merge animation instead of queueing behind it.
+  let journeyMs = 0
+  for (let i = 0; i < events.length; i++) {
+    const event = events[i]
+    if (!isJourney(event)) continue
+    if (!reducedMotion && pacmanAnimator.begin(event.from, event.path)) {
+      journeyMs = pacmanAnimator.durationMs
+    }
+    break
+  }
+
+  const immediate = events.filter((event) => !isJourney(event) && !CASCADE_OWNED.has(event.type))
+
+  // A journey's own effects wait for the arrival; everything else fires now.
+  const arrived = events.filter(isJourney)
+  scheduleFx(arrived, journeyMs)
+
   if (cascade !== undefined) {
-    const immediate = events.filter(
-      (event) => event.type !== 'cascadeSteps' && !CASCADE_OWNED.has(event.type)
-    )
-    presentEvents(immediate)
+    const payload = immediate.filter((event) => event.type !== 'cascadeSteps')
+    presentEvents(payload)
 
     if (cascade.steps.length > 0 && cascadePlayer.begin(cascade.steps)) {
       // The first link starts on the next frame, reported by update().
       return
     }
+  } else {
+    presentEvents(immediate)
   }
 
-  presentEvents(events)
   syncDialogs()
 }
 
@@ -377,6 +426,8 @@ function resetEffects(): void {
   pointer.setSelectedSlot(null)
   pointer.clearDrag()
   cascadePlayer.cancel()
+  pacmanAnimator.cancel()
+  pendingFx.length = 0
   particles.clear()
   floaters.clear()
   mergeFx.clear()
@@ -679,6 +730,9 @@ const pointer = new PointerInput(
     home.isBlocking ||
     hud.isDialogOpen() ||
     cascadePlayer.active ||
+    // While the boss is visibly walking, its move is still being shown; letting
+    // the player place now would start a second journey mid-stride.
+    pacmanAnimator.active ||
     view().gameOver ||
     view().pendingWin !== null
 )
@@ -809,10 +863,17 @@ function frame(nowMs: number): void {
   if (tick.started !== null) presentEvents(tick.started.events)
   if (tick.finished) syncDialogs()
 
+  // The boss walking to its food. Its bite effects were scheduled for the
+  // moment it arrives, so this is what releases them.
+  pacmanAnimator.update(dtMs)
+  flushPendingFx(nowMs)
+
   if (rejectedCell !== null && rejectedCell.untilMs <= nowMs) rejectedCell = null
 
   const state = view()
   refreshTexts(state)
+
+  const moving = pacmanAnimator.position()
 
   const renderState: RenderState = {
     view: state,
@@ -836,6 +897,8 @@ function frame(nowMs: number): void {
     leaderboard: leaderboardRows,
     shakeOffset: { x: shake.x, y: shake.y },
     pacman: state.pacman,
+    pacmanMoving:
+      moving === null ? null : { x: moving.x, y: moving.y, heading: pacmanAnimator.heading() },
     timeMs: nowMs,
     reducedMotion
   }

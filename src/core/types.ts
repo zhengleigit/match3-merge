@@ -246,12 +246,16 @@ export type GameEvent =
   /** An obstacle was destroyed. The bonus is paid only on this event. */
   | { type: 'obstacleCleared'; x: number; y: number; bonus: number }
   /** The boss left the cage for the wall gap. */
-  | { type: 'pacmanExited'; x: number; y: number }
+  | { type: 'pacmanExited'; x: number; y: number; from: Pos; path: Pos[] }
   /** The boss ate a block and healed by its score value. */
   | {
       type: 'pacmanAte'
       x: number
       y: number
+      /** Cell it set off from, so the view can animate the journey. */
+      from: Pos
+      /** Cells walked through, ending at the eaten one. Empty when adjacent. */
+      path: Pos[]
       level: number
       heal: number
       hp: number

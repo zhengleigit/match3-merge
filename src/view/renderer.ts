@@ -84,6 +84,12 @@ export interface RenderState {
   shakeOffset: { x: number; y: number }
   /** Boss position and phase, or null outside battle mode. */
   pacman: PacManState | null
+  /**
+   * Fractional cell the boss is drawn at while travelling its route, or null
+   * when it should be drawn on its rules position. Purely presentational: the
+   * rules have already moved it to the destination.
+   */
+  pacmanMoving: { x: number; y: number; heading: { x: number; y: number } | null } | null
   timeMs: number
   reducedMotion: boolean
 }
@@ -621,8 +627,17 @@ export function render(ctx: CanvasRenderingContext2D, state: RenderState): void 
   // under it already reads as impact. A defeated boss is not drawn at all — it
   // has no hp left to show and its bars would be meaningless.
   if (state.pacman !== null && state.pacman.hp > 0) {
-    const rect = boardCellRect(state.layout, state.pacman.x, state.pacman.y)
-    drawPacMan(ctx, rect, state.pacman, state.timeMs)
+    const moving = state.pacmanMoving
+    drawPacMan(
+      ctx,
+      state.layout,
+      state.pacman,
+      moving === null ? state.pacman.x : moving.x,
+      moving === null ? state.pacman.y : moving.y,
+      moving === null ? null : moving.heading,
+      state.timeMs,
+      moving !== null
+    )
   }
 
   drawScore(ctx, state)

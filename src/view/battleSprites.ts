@@ -70,22 +70,35 @@ export function drawWall(ctx: CanvasRenderingContext2D, assets: ThemeAssets, rec
  * readable at every zoom level. The hp bar is scaled against `maxHp` — the
  * highest the boss ever reached — because its hp grows through the opening of a
  * run; a bar scaled against the starting value would overfill immediately.
+ *
+ * `x`/`y` are fractional cells while the boss is travelling, which is how the
+ * view shows it walking its route instead of teleporting onto its food.
  */
 export function drawPacMan(
   ctx: CanvasRenderingContext2D,
-  rect: Rect,
+  layout: { cell: number; boardX: number; boardY: number },
   boss: PacManState,
-  timeMs: number
+  x: number,
+  y: number,
+  heading: { x: number; y: number } | null,
+  timeMs: number,
+  moving: boolean
 ): void {
-  const cx = rect.x + rect.size / 2
-  const cy = rect.y + rect.size / 2
-  const radius = rect.size * PACMAN_BODY_RATIO
+  const cx = layout.boardX + x * layout.cell + layout.cell / 2
+  const cy = layout.boardY + y * layout.cell + layout.cell / 2
+  const size = layout.cell
+  const radius = size * PACMAN_BODY_RATIO
 
-  // Chomp animation: the mouth opens and closes a few times a second. In the
-  // cage it is idle (no hunting), so it chomps slower.
-  const speed = boss.phase === 'cage' ? 0.0022 : 0.006
+  // Chomp: fast while travelling, idle in the cage (nothing to hunt).
+  const speed = moving ? 0.018 : boss.phase === 'cage' ? 0.0022 : 0.006
   const phase = (timeMs * speed) % 1
   const open = Math.abs(Math.sin(phase * Math.PI)) * 0.30 + 0.04
+
+  // Face the way it is going; default to "down" when standing still.
+  let facing = Math.PI / 2
+  if (heading !== null && (heading.x !== 0 || heading.y !== 0)) {
+    facing = Math.atan2(heading.y, heading.x)
+  }
 
   ctx.save()
 
@@ -99,7 +112,6 @@ export function drawPacMan(
   ctx.fill()
 
   // Body: a yellow disc with a wedge cut out towards the direction it faces.
-  const facing = boss.phase === 'board' ? Math.PI / 2 : Math.PI / 2
   ctx.beginPath()
   ctx.moveTo(cx, cy)
   ctx.arc(cx, cy, radius, facing + open * Math.PI, facing - open * Math.PI + Math.PI * 2)
@@ -112,27 +124,30 @@ export function drawPacMan(
   ctx.fill()
 
   ctx.strokeStyle = 'rgba(84,52,0,0.55)'
-  ctx.lineWidth = Math.max(1, rect.size * 0.02)
+  ctx.lineWidth = Math.max(1, size * 0.02)
   ctx.stroke()
 
-  // Eye
+  // Eye, offset perpendicular to the facing direction.
+  const eyeX = cx + Math.cos(facing - Math.PI / 2) * radius * 0.34 + Math.cos(facing) * radius * 0.16
+  const eyeY = cy + Math.sin(facing - Math.PI / 2) * radius * 0.34 + Math.sin(facing) * radius * 0.16
   ctx.beginPath()
-  ctx.arc(cx - radius * 0.06, cy - radius * 0.46, radius * 0.16, 0, Math.PI * 2)
+  ctx.arc(eyeX, eyeY, radius * 0.16, 0, Math.PI * 2)
   ctx.fillStyle = 'rgba(38,28,4,0.92)'
   ctx.fill()
 
   ctx.restore()
 
-  // Two bars, stacked directly under the disc.
-  const barW = rect.size * HP_BAR_RATIO * 2
-  const barH = Math.max(3, rect.size * BAR_HEIGHT_RATIO)
+  // Two bars, stacked directly under the disc. They stay with the sprite while
+  // it moves, so the player can always see what the journey cost or healed.
+  const barW = size * HP_BAR_RATIO * 2
+  const barH = Math.max(3, size * BAR_HEIGHT_RATIO)
   const barX = cx - barW / 2
-  const topY = rect.y + rect.size * 0.80
+  const topY = cy + size * (0.5 - 0.20)
 
   const hpRatio = boss.maxHp > 0 ? Math.max(0, Math.min(1, boss.hp / boss.maxHp)) : 0
   drawBar(ctx, barX, topY, barW, barH, hpRatio, '#ff4d5e', 'rgba(255,120,140,0.30)')
 
-  const barY = topY + barH + Math.max(2, rect.size * BAR_GAP_RATIO)
+  const barY = topY + barH + Math.max(2, size * BAR_GAP_RATIO)
   drawBar(
     ctx,
     barX,
