@@ -88,6 +88,47 @@ const BAND_COUNT = 4
  */
 const NEXT_BRIDGE_CELLS = 0.55
 
+/**
+ * How far above the finger a dragged block is drawn, in pixels.
+ *
+ * A fingertip covers roughly 40-50 CSS px, and a phone cell is only 27-44 px,
+ * so a block drawn at the touch point is completely hidden by the hand that is
+ * carrying it. The offset is therefore an absolute floor rather than a fraction
+ * of a cell: a fraction would shrink exactly when the screen (and the cell)
+ * gets small, which is when the problem is worst.
+ */
+export const TOUCH_LIFT_MIN_PX = 56
+
+/**
+ * The same offset for a mouse or stylus, in cell units.
+ *
+ * Those pointers are thin, so the block only needs to clear the cursor glyph.
+ * Lifting it a whole cell would make it read as detached from the pointer.
+ */
+const MOUSE_LIFT_CELLS = 0.15
+
+/** Pointer kind, as far as drag behaviour is concerned. */
+export type PointerKind = 'mouse' | 'pen' | 'touch'
+
+/**
+ * Classifies a `PointerEvent.pointerType` string.
+ *
+ * Anything unrecognised (including the empty string older engines report) is
+ * treated as a mouse: that is the conservative case, since it keeps the block
+ * under the cursor instead of moving the drop target out from under the player.
+ */
+export function pointerKindOf(pointerType: string): PointerKind {
+  if (pointerType === 'touch') return 'touch'
+  if (pointerType === 'pen') return 'pen'
+  return 'mouse'
+}
+
+/** Vertical offset of the dragged block above the pointer, in pixels. */
+export function dragLiftPx(layout: Layout, kind: PointerKind): number {
+  if (kind === 'touch') return Math.max(layout.cell, TOUCH_LIFT_MIN_PX)
+  return Math.round(layout.cell * MOUSE_LIFT_CELLS)
+}
+
 /** Leaderboard geometry, in cell units. */
 const LB_HEADER_CELLS = 0.95
 const LB_ROW_CELLS = 0.68
@@ -425,6 +466,50 @@ export function bufferSlotAt(layout: Layout, px: number, py: number): number | n
 
 export function isNextSlotAt(layout: Layout, px: number, py: number): boolean {
   return hits(nextSlotRect(layout), px, py)
+}
+
+/**
+ * Which board cell a drag would drop into, given where the pointer is.
+ *
+ * The dropped block is drawn `dragLiftPx` above the pointer (see `dragLiftPx`),
+ * so the cell under the block — not the cell under the finger — is the one the
+ * player is aiming at. This is what makes the gesture "what you see is what you
+ * get": the block and the highlighted target are the same square.
+ *
+ * The reach limit is the whole difficulty here. On a phone the lift is 56px but
+ * a cell is only 27-44px, so the block sits 1.3-2.1 rows above the finger. The
+ * finger cannot leave the board area, which means the lift can only ever move
+ * the target *upwards* — and the bottom rows would be unreachable.
+ *
+ * The escape is to let the finger go *below* the board by exactly the amount
+ * the lift overshoots one cell (`lift - cell`). That is the shortest overhang
+ * that puts the block's centre inside the last row, and it is 0 whenever the
+ * lift fits inside a cell — so a mouse, whose block barely leaves the cursor,
+ * keeps its old target area unchanged. Above the board the same margin applies
+ * but the target is additionally pinned to the first row, because a finger
+ * cannot go above the screen.
+ */
+export function carriedCellAt(
+  layout: Layout,
+  px: number,
+  py: number,
+  kind: PointerKind
+): { x: number; y: number } | null {
+  const anchorY = py - dragLiftPx(layout, kind)
+
+  const direct = boardCellAt(layout, px, anchorY)
+  if (direct !== null) return direct
+
+  // Vertical overhang the finger is allowed, in pixels. Zero for a mouse; on a
+  // phone it is the amount by which the block is drawn more than a row higher.
+  const overhang = Math.max(0, dragLiftPx(layout, kind) - layout.cell)
+  const boardBottom = layout.boardY + layout.boardH
+  const aboveBoard = anchorY < layout.boardY && py >= layout.boardY - overhang && py <= boardBottom + overhang
+  if (aboveBoard && px >= layout.boardX && px < layout.boardX + layout.boardW) {
+    return { x: Math.floor((px - layout.boardX) / layout.cell), y: 0 }
+  }
+
+  return null
 }
 
 /** Maps a board-space position (can be fractional) to pixels. */

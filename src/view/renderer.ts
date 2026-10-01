@@ -70,7 +70,15 @@ export interface RenderState {
   dragFromNext: boolean  /** Level being dragged, or 0 when nothing is being dragged. */
   dragLevel: number
   dragPx: { x: number; y: number } | null
-  /** Board cell under the pointer while dragging (drop preview). */
+  /**
+   * Pixels the carried block is drawn above the pointer, supplied by the input
+   * layer so the drawing and the drop target cannot disagree.
+   */
+  dragLift: number
+  /**
+   * Cell the carried block is over, which is also the cell it would drop into.
+   * Null whenever the block is not over the board.
+   */
   hoverCell: { x: number; y: number } | null
   /** Cell that just rejected a drop, with the timestamp it stops flashing. */
   rejectedCell: { x: number; y: number; untilMs: number } | null
@@ -249,23 +257,17 @@ function drawDropPreview(ctx: CanvasRenderingContext2D, state: RenderState): voi
   if (state.dragLevel <= 0 || state.hoverCell === null) return
 
   const rect = boardCellRect(state.layout, state.hoverCell.x, state.hoverCell.y)
-  // Draw the real block, semi-transparent, plus a bright ring. An earlier
-  // version drew a faint white ghost here, which combined with suppressing the
-  // drag ghost made the block appear to vanish before the drop.
-  drawBlock(
-    ctx,
-    state.assets,
-    state.styles,
-    rect,
-    state.dragLevel,
-    state.view.levelCount,
-    state.labels,
-    { alpha: 0.62 }
-  )
 
+  // The carried block is drawn snapped to this very cell (see `dragCentre`), so
+  // a semi-transparent block underneath it would be invisible anyway — both use
+  // the same inner rect and the ghost is at 0.96 alpha. Only the ring is drawn,
+  // and being the one thing the block cannot cover it is what tells the player
+  // the drop is aimed here.
   ctx.save()
-  ctx.strokeStyle = 'rgba(255,255,255,0.85)'
-  ctx.lineWidth = 2
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)'
+  ctx.lineWidth = 3
+  ctx.shadowColor = 'rgba(190,210,255,0.9)'
+  ctx.shadowBlur = 10
   roundRectPath(ctx, rect.x + 2, rect.y + 2, rect.size - 4, rect.size - 4, rect.size * 0.2)
   ctx.stroke()
   ctx.restore()
@@ -478,21 +480,35 @@ function drawRowNext(ctx: CanvasRenderingContext2D, state: RenderState): void {
 }
 
 function drawDragGhost(ctx: CanvasRenderingContext2D, state: RenderState): void {
-  if (state.dragPx === null) return
-  if (state.dragLevel <= 0) return
+  const centre = dragCentre(state)
+  if (centre === null) return
 
   const size = state.layout.cell
-  // Offset upward so the block stays visible under a finger or cursor, and
-  // draw it over the drop preview so it never disappears mid-drag.
-  const lift = state.hoverCell !== null ? size * 0.15 : 0
-  const rect: Rect = {
-    x: state.dragPx.x - size / 2,
-    y: state.dragPx.y - size / 2 - lift,
-    size
-  }
+  const rect: Rect = { x: centre.x - size / 2, y: centre.y - size / 2, size }
   drawBlock(ctx, state.assets, state.styles, rect, state.dragLevel, state.view.levelCount, state.labels, {
     alpha: 0.96
   })
+}
+
+/**
+ * Where the centre of the carried block goes.
+ *
+ * Over the board it snaps to the target cell, so the block sits exactly on the
+ * square it would land in — the player reads the block's own position as the
+ * answer to "where will this go?". Off the board it follows the pointer by
+ * `dragLift`, which on a phone is a whole cell: a block drawn at the touch
+ * point is hidden under the finger that is carrying it.
+ */
+function dragCentre(state: RenderState): { x: number; y: number } | null {
+  if (state.dragLevel <= 0) return null
+
+  if (state.hoverCell !== null) {
+    const rect = boardCellRect(state.layout, state.hoverCell.x, state.hoverCell.y)
+    return { x: rect.x + rect.size / 2, y: rect.y + rect.size / 2 }
+  }
+
+  if (state.dragPx === null) return null
+  return { x: state.dragPx.x, y: state.dragPx.y - state.dragLift }
 }
 
 // ---------------------------------------------------------------------------
@@ -609,8 +625,8 @@ export function render(ctx: CanvasRenderingContext2D, state: RenderState): void 
   ctx.translate(state.shakeOffset.x, state.shakeOffset.y)
   drawBoardPlate(ctx, state)
   drawBoardContents(ctx, state)
-  // Merge animation and the drop preview sit above the board but still inside
-  // the shake transform, so they move with the grid.
+  // The merge animation sits above the board but still inside the shake
+  // transform, so it moves with the grid it belongs to.
   state.mergeFx.draw(
     ctx,
     state.layout,
@@ -619,8 +635,12 @@ export function render(ctx: CanvasRenderingContext2D, state: RenderState): void 
     state.labels,
     state.view.levelCount
   )
-  drawDropPreview(ctx, state)
   ctx.restore()
+
+  // The drop preview is drawn outside the shake transform on purpose: the
+  // carried block is outside it too, and the two must stay locked to the same
+  // cell for "the block sits on its target" to hold while the board shakes.
+  drawDropPreview(ctx, state)
 
   // The boss is drawn after the board but outside the shake transform: its
   // status bars must stay perfectly steady to be readable, and the board moving

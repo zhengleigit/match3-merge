@@ -1,4 +1,13 @@
-import { boardCellAt, bufferSlotAt, isNextSlotAt, type Layout } from '../view/layout'
+import {
+  boardCellAt,
+  bufferSlotAt,
+  carriedCellAt,
+  dragLiftPx,
+  isNextSlotAt,
+  pointerKindOf,
+  type Layout,
+  type PointerKind
+} from '../view/layout'
 
 /**
  * Pointer input -> semantic actions.
@@ -30,7 +39,18 @@ export interface PointerState {
   dragSlot: number
   dragLevel: number
   dragPx: { x: number; y: number } | null
+  /**
+   * Board cell the block is currently over, which is also the cell it would
+   * drop into. Null whenever the pointer is not over the board.
+   */
   hoverCell: { x: number; y: number } | null
+  /**
+   * Pixels the carried block is drawn above the pointer.
+   *
+   * Lives here rather than in the renderer so the drawing and the drop target
+   * are guaranteed to agree: both derive from the same number, computed once.
+   */
+  dragLift: number
   hoverSlot: number | null
   hoverNext: boolean
   /**
@@ -56,6 +76,7 @@ export class PointerInput {
     dragLevel: 0,
     dragPx: null,
     hoverCell: null,
+    dragLift: 0,
     hoverSlot: null,
     hoverNext: false,
     dragFromNext: false
@@ -70,6 +91,8 @@ export class PointerInput {
   private pressSource: DragSource = 'none'
   private dragSource: DragSource = 'none'
   private dragging = false
+  /** Pointer kind of the gesture in progress; decides the lift. */
+  private pressKind: PointerKind = 'mouse'
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -107,10 +130,12 @@ export class PointerInput {
     this.pressing = false
     this.pressSource = 'none'
     this.dragSource = 'none'
+    this.pressKind = 'mouse'
     this.state.dragSlot = -1
     this.state.dragLevel = 0
     this.state.dragPx = null
     this.state.hoverCell = null
+    this.state.dragLift = 0
     this.state.dragFromNext = false
   }
 
@@ -130,6 +155,10 @@ export class PointerInput {
     this.pressStartX = point.x
     this.pressStartY = point.y
     this.dragSource = 'none'
+    this.pressKind = pointerKindOf(event.pointerType)
+    // Set at press time, not once the drag actually starts, so the block does
+    // not jump under the finger the moment the threshold is crossed.
+    this.state.dragLift = dragLiftPx(this.layout, this.pressKind)
 
     const slot = bufferSlotAt(this.layout, point.x, point.y)
     const onNext = isNextSlotAt(this.layout, point.x, point.y)
@@ -147,6 +176,7 @@ export class PointerInput {
       this.state.dragPx = { x: point.x, y: point.y }
     } else {
       this.pressSource = onNext ? 'next' : 'none'
+      this.state.dragLift = 0
     }
 
     this.canvas.setPointerCapture(event.pointerId)
@@ -173,7 +203,8 @@ export class PointerInput {
 
     if (this.dragging) {
       this.state.dragPx = { x: point.x, y: point.y }
-      this.state.hoverCell = boardCellAt(this.layout, point.x, point.y)
+      // The target is the cell under the lifted block, not under the finger.
+      this.state.hoverCell = carriedCellAt(this.layout, point.x, point.y, this.pressKind)
       this.state.dragFromNext = this.dragSource === 'next'
     }
   }
@@ -193,6 +224,7 @@ export class PointerInput {
     this.state.hoverCell = null
     this.state.dragSlot = -1
     this.state.dragLevel = 0
+    this.state.dragLift = 0
     this.state.dragFromNext = false
 
     if (this.canvas.hasPointerCapture(event.pointerId)) {
@@ -200,14 +232,17 @@ export class PointerInput {
     }
 
     if (wasDragging) {
-      const cell = boardCellAt(this.layout, point.x, point.y)
+      const cell = carriedCellAt(this.layout, point.x, point.y, this.pressKind)
       const dropSlot = bufferSlotAt(this.layout, point.x, point.y)
       if (!hadLevel) {
         this.callbacks.onInvalidDrop()
         return
       }
 
-      // Dropping "next" onto a buffer slot stages it there.
+      // Dropping "next" onto a buffer slot stages it there. The tray is tested
+      // first, and with the raw finger position, because the lifted block aims
+      // a whole cell higher: a finger over the tray would otherwise resolve to
+      // the board's bottom row and the block could never be staged by dragging.
       if (source === 'next') {
         if (dropSlot !== null) {
           this.callbacks.onNextToBuffer(dropSlot)
@@ -221,8 +256,10 @@ export class PointerInput {
         return
       }
 
-      // Dragging a staged block only makes sense onto the board. Dropping it
-      // back on a buffer slot is a no-op rather than a silent reorder.
+      // A staged block can only go onto the board, so the tray is deliberately
+      // not consulted here: "the block I am carrying is over the tray" is not a
+      // meaningful target, and treating it as one would steal drops aimed at
+      // the bottom row directly below the tray.
       if (cell !== null) {
         this.callbacks.onPlace(slot, cell.x, cell.y)
         return

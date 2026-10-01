@@ -902,6 +902,7 @@ function frame(nowMs: number): void {
     dragFromNext: pointer.state.dragFromNext,
     dragLevel: pointer.state.dragLevel,
     dragPx: pointer.state.dragPx,
+    dragLift: pointer.state.dragLift,
     hoverCell: pointer.state.hoverCell,
     rejectedCell,
     particles,
