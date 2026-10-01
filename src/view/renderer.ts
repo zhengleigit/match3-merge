@@ -1,7 +1,8 @@
 import type { GameView } from '../core/game'
 import { formatDuration, type ScoreEntry } from '../core/leaderboard'
 import { SLOT } from '../core/theme'
-import { CELL_OBSTACLE_CRACKED } from '../core/types'
+import { CELL_OBSTACLE_CRACKED, CELL_WALL, type PacManState } from '../core/types'
+import { drawPacMan, drawWall } from './battleSprites'
 import { imageFor, type ThemeAssets } from './assets'
 import type { FloaterSystem } from './floaters'
 import {
@@ -81,6 +82,8 @@ export interface RenderState {
   leaderboard: readonly ScoreEntry[]
   /** Screen-shake offset in pixels; the board translates by this. */
   shakeOffset: { x: number; y: number }
+  /** Boss position and phase, or null outside battle mode. */
+  pacman: PacManState | null
   timeMs: number
   reducedMotion: boolean
 }
@@ -211,6 +214,11 @@ function drawBoardContents(ctx: CanvasRenderingContext2D, state: RenderState): v
           ctx.lineWidth = 2
           rect_stroke(ctx, rect)
         }
+        continue
+      }
+
+      if (value === CELL_WALL) {
+        drawWall(ctx, assets, rect)
         continue
       }
 
@@ -389,12 +397,25 @@ function drawScore(ctx: CanvasRenderingContext2D, state: RenderState): void {
 function drawRules(ctx: CanvasRenderingContext2D, state: RenderState): void {
   const band = rulesBand(state.layout)
   const size = clampSize(band.h * 0.42, 9, 14)
+  const maxWidth = band.w * 0.96
 
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillStyle = 'rgba(158,174,220,0.85)'
-  ctx.font = `400 ${size}px system-ui, "Microsoft YaHei", sans-serif`
-  ctx.fillText(state.texts.rules, band.x + band.w / 2, band.y + band.h / 2, band.w * 0.96)
+
+  // Shrink the font to fit rather than squeezing it horizontally.
+  //
+  // `fillText`'s maxWidth parameter scales the glyphs' ADVANCE WIDTH, so passing
+  // a long string just smears the characters into each other and the rule
+  // becomes unreadable — which is exactly what a longer mode description did.
+  let fontPx = size
+  ctx.font = `400 ${fontPx}px system-ui, "Microsoft YaHei", sans-serif`
+  while (fontPx > 8 && ctx.measureText(state.texts.rules).width > maxWidth) {
+    fontPx -= 1
+    ctx.font = `400 ${fontPx}px system-ui, "Microsoft YaHei", sans-serif`
+  }
+
+  ctx.fillText(state.texts.rules, band.x + band.w / 2, band.y + band.h / 2)
 }
 
 function drawSideColumn(ctx: CanvasRenderingContext2D, state: RenderState): void {
@@ -594,6 +615,15 @@ export function render(ctx: CanvasRenderingContext2D, state: RenderState): void 
   )
   drawDropPreview(ctx, state)
   ctx.restore()
+
+  // The boss is drawn after the board but outside the shake transform: its
+  // status bars must stay perfectly steady to be readable, and the board moving
+  // under it already reads as impact. A defeated boss is not drawn at all — it
+  // has no hp left to show and its bars would be meaningless.
+  if (state.pacman !== null && state.pacman.hp > 0) {
+    const rect = boardCellRect(state.layout, state.pacman.x, state.pacman.y)
+    drawPacMan(ctx, rect, state.pacman, state.timeMs)
+  }
 
   drawScore(ctx, state)
   drawRowNext(ctx, state)

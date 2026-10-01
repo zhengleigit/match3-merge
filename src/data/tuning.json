@@ -40,6 +40,21 @@
     "breakOutrightAtMaxLevel": true
   },
 
+  "battle": {
+    "_comment": "战斗模式（吃豆人）。棋盘被 wallRow 分成三段：上方是笼子（放 8 个方块、不可落子），wallRow 这一行是不可消除的墙（只留 gapX 一个缺口），下方是可玩区。所有数值都按“得分”换算：damagePerScore/healPerScore 就是 得分->血量 的汇率。",
+    "wallRow": 2,
+    "gapX": 3,
+    "cageBlockLevel": 5,
+    "cageBlockCount": 8,
+    "start": { "x": 3, "y": 0 },
+    "startHp": 1,
+    "actionPerPlacement": 0.5,
+    "mergeBarDrain": 0.5,
+    "damagePerScore": 1,
+    "healPerScore": 1,
+    "damageFromLevel": 3
+  },
+
   "history": {
     "limit": 200
   },

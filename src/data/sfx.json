@@ -80,6 +80,53 @@
       "noise": true,
       "noiseGain": 0.14
     },
+    "pacmanEat": {
+      "wave": "triangle",
+      "freq": 300,
+      "durationMs": 90,
+      "attackMs": 2,
+      "gain": 0.2,
+      "sweepTo": 1.7,
+      "noise": false
+    },
+    "pacmanBite": {
+      "wave": "sawtooth",
+      "freq": 240,
+      "durationMs": 130,
+      "attackMs": 1,
+      "gain": 0.24,
+      "sweepTo": 0.7,
+      "noise": true,
+      "noiseGain": 0.16
+    },
+    "pacmanExit": {
+      "wave": "square",
+      "freq": 140,
+      "durationMs": 300,
+      "attackMs": 6,
+      "gain": 0.24,
+      "sweepTo": 2.4,
+      "noise": false
+    },
+    "pacmanHurt": {
+      "wave": "sawtooth",
+      "freq": 520,
+      "durationMs": 160,
+      "attackMs": 1,
+      "gain": 0.26,
+      "sweepTo": 0.5,
+      "noise": true,
+      "noiseGain": 0.2
+    },
+    "pacmanDefeat": {
+      "wave": "sawtooth",
+      "freq": 180,
+      "durationMs": 700,
+      "attackMs": 4,
+      "gain": 0.36,
+      "sweepTo": 3.6,
+      "noise": false
+    },
     "obstacleBreak": {
       "wave": "square",
       "freq": 880,

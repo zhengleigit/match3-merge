@@ -185,11 +185,17 @@ export class Hud {
     this.openDialog(panel, true)
   }
 
-  showGameOver(score: number, best: number, canUndo: boolean): void {
+  showGameOver(score: number, best: number, canUndo: boolean, battle = false): void {
     const panel = el('div', 'hud__panel')
-    panel.append(el('h2', undefined, '棋盘已满'))
+    panel.append(el('h2', undefined, battle ? '棋盘被吃光了' : '棋盘已满'))
     panel.append(
-      el('p', undefined, `本局得分 ${score}，最高分 ${Math.max(best, score)}。放不下新方块了。`)
+      el(
+        'p',
+        undefined,
+        battle
+          ? `本局得分 ${score}，最高分 ${Math.max(best, score)}。可玩区的方块被吃光了。`
+          : `本局得分 ${score}，最高分 ${Math.max(best, score)}。放不下新方块了。`
+      )
     )
 
     const actions = el('div', 'hud__actions')
@@ -203,6 +209,30 @@ export class Hud {
     }
     const again = el('button', 'primary', undefined)
     again.textContent = '重新开始'
+    again.addEventListener('click', () => {
+      this.closeDialog()
+      this.callbacks.onRequestRestart()
+    })
+    actions.append(again)
+    panel.append(actions)
+    this.openDialog(panel, true)
+  }
+
+  /**
+   * Battle mode's victory: the boss's hit points reached zero.
+   *
+   * Separate from `showWin`, which belongs to the level-based win of endless
+   * mode and offers "keep playing". There is nothing to continue here.
+   */
+  showVictory(score: number, best: number): void {
+    const panel = el('div', 'hud__panel')
+    panel.append(el('h2', undefined, '吃豆人被打倒了！'))
+    panel.append(
+      el('p', undefined, `本局得分 ${score}，最高分 ${Math.max(best, score)}。它的血被你打空了。`)
+    )
+
+    const actions = el('div', 'hud__actions')
+    const again = el('button', 'primary', '再来一局')
     again.addEventListener('click', () => {
       this.closeDialog()
       this.callbacks.onRequestRestart()

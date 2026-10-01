@@ -14,6 +14,25 @@ const RISE_PX = 34
 
 export type FloaterTone = FloaterSpec['tone']
 
+/**
+ * Tones are mapped to small integers once, here, so the per-floater and
+ * per-frame paths only ever deal in numbers — no string comparison while
+ * drawing, and adding a tone is a one-line change.
+ */
+const TONE_SCORE = 0
+const TONE_CHAIN = 1
+const TONE_BONUS = 2
+const TONE_HEAL = 3
+const TONE_DAMAGE = 4
+
+const FLOATER_TONE_INDEX: Record<FloaterTone, number> = {
+  score: TONE_SCORE,
+  chain: TONE_CHAIN,
+  bonus: TONE_BONUS,
+  heal: TONE_HEAL,
+  damage: TONE_DAMAGE
+}
+
 export class FloaterSystem {
   private readonly px = new Float32Array(CAPACITY)
   private readonly py = new Float32Array(CAPACITY)
@@ -36,7 +55,7 @@ export class FloaterSystem {
     this.px[index] = px
     this.py[index] = py
     this.life[index] = LIFE_MS
-    this.tone[index] = tone === 'bonus' ? 2 : tone === 'chain' ? 1 : 0
+    this.tone[index] = FLOATER_TONE_INDEX[tone]
     this.labels[index] = text
   }
 
@@ -75,8 +94,17 @@ export class FloaterSystem {
       ctx.globalAlpha = Math.min(1, appear) * Math.min(1, t * 2.6)
 
       const kind = this.tone[i]
-      ctx.font = kind === 2 ? this.fontBonus : this.fontNormal
-      ctx.fillStyle = kind === 2 ? '#ffd166' : kind === 1 ? '#9ae6b4' : '#e8ecf5'
+      ctx.font = kind === TONE_BONUS || kind === TONE_HEAL ? this.fontBonus : this.fontNormal
+      ctx.fillStyle =
+        kind === TONE_BONUS
+          ? '#ffd166'
+          : kind === TONE_HEAL
+            ? '#8ef0b4'
+            : kind === TONE_DAMAGE
+              ? '#ff8fa3'
+              : kind === TONE_CHAIN
+                ? '#9ae6b4'
+                : '#e8ecf5'
 
       ctx.fillText(label, this.px[i], this.py[i])
     }

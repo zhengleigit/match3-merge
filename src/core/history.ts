@@ -70,6 +70,7 @@ export function cloneSnapshot(snapshot: GameSnapshot): GameSnapshot {
       snapshot.pendingWin === null
         ? null
         : { level: snapshot.pendingWin.level, score: snapshot.pendingWin.score },
+    pacman: snapshot.pacman === null ? null : { ...snapshot.pacman },
     rngState: snapshot.rngState
   }
 }

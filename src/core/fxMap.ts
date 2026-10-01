@@ -28,6 +28,11 @@ export type SoundId =
   | 'obstacleSpawn'
   | 'obstacleCrack'
   | 'obstacleBreak'
+  | 'pacmanEat'
+  | 'pacmanBite'
+  | 'pacmanHurt'
+  | 'pacmanExit'
+  | 'pacmanDefeat'
   | 'invalid'
   | 'undo'
   | 'win'
@@ -56,11 +61,13 @@ export interface ShakeSpec {
   durationMs: number
 }
 
+export type FloaterTone = 'score' | 'bonus' | 'chain' | 'heal' | 'damage'
+
 export interface FloaterSpec {
   x: number
   y: number
   text: string
-  tone: 'score' | 'bonus' | 'chain'
+  tone: FloaterTone
 }
 
 /**
@@ -106,6 +113,11 @@ export interface FxContext {
   levelHues: readonly number[]
   /** When true (prefers-reduced-motion) particles and shake are suppressed. */
   reducedMotion: boolean
+  /**
+   * Battle mode: the boss's cell, so its own effects land on it.
+   * Optional so every existing call site keeps working.
+   */
+  boss?: Pos
 }
 
 // ---------------------------------------------------------------------------
@@ -262,6 +274,11 @@ export function describeEvents(
     if (lastShake === null || clamped.strength > lastShake.strength) lastShake = clamped
   }
 
+  // The boss is described to fxMap in board space, so effects that belong on it
+  // can be placed without the rules layer knowing anything about layout.
+  const bossCentre = (): { x: number; y: number } =>
+    ctx.boss === undefined ? { x: 0, y: 0 } : { x: ctx.boss.x, y: ctx.boss.y }
+
   for (let i = 0; i < events.length; i++) {
     const event = events[i]
 
@@ -348,6 +365,55 @@ export function describeEvents(
           toLevel: 0,
           big: true
         })
+        break
+      }
+
+      case 'pacmanAte': {
+        // Two bursts: one where the block was, one at the boss, so the eye can
+        // follow "that block went into it".
+        const preset = presetOf('pacmanAte')
+        if (preset !== undefined) {
+          pushBurst(burstFrom(preset, cellCentre(event.x, event.y), 44, scale(preset.count)))
+          pushBurst(burstFrom(preset, bossCentre(), 44, scale(preset.count * 0.5)))
+          pushShake(shakeFrom(preset))
+        }
+        out.sounds.push(sound(event.fromCage ? 'pacmanEat' : 'pacmanBite'))
+        if (event.heal > 0) {
+          out.floaters.push({ x: event.x, y: event.y, text: `+${event.heal}`, tone: 'heal' })
+        }
+        break
+      }
+
+      case 'pacmanExited': {
+        const preset = presetOf('pacmanExited')
+        if (preset !== undefined) {
+          pushBurst(burstFrom(preset, bossCentre(), 20, scale(preset.count)))
+          pushShake(shakeFrom(preset))
+        }
+        out.sounds.push(sound('pacmanExit'))
+        break
+      }
+
+      case 'pacmanHurt': {
+        // The boss is what got hit, so the burst belongs on it, not on the
+        // merge that caused it.
+        const preset = presetOf('pacmanHurt')
+        if (preset !== undefined) {
+          pushBurst(burstFrom(preset, bossCentre(), 350, scale(preset.count)))
+          pushShake(shakeFrom(preset))
+        }
+        out.sounds.push(sound('pacmanHurt'))
+        out.floaters.push({ x: event.x, y: event.y, text: `-${event.amount}`, tone: 'damage' })
+        break
+      }
+
+      case 'pacmanDefeated': {
+        const preset = presetOf('pacmanDefeated')
+        if (preset !== undefined) {
+          pushBurst(burstFrom(preset, bossCentre(), 150, scale(preset.count)))
+          pushShake(shakeFrom(preset))
+        }
+        out.sounds.push(sound('pacmanDefeat'))
         break
       }
 

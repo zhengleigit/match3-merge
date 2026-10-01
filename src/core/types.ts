@@ -25,9 +25,23 @@ export const CELL_OBSTACLE = -1
  */
 export const CELL_OBSTACLE_CRACKED = -2
 
-/** True for either obstacle state. Use this rather than comparing to -1. */
+/**
+ * Indestructible wall (battle mode).
+ *
+ * Like an obstacle it blocks placement and never merges, but no merge can ever
+ * remove it. Kept as its own value rather than as "an obstacle with a huge hit
+ * count" so the obstacle damage path can never touch it.
+ */
+export const CELL_WALL = -3
+
+/** True for either damageable obstacle state. Use this rather than comparing to -1. */
 export function isObstacleValue(value: number): boolean {
   return value === CELL_OBSTACLE || value === CELL_OBSTACLE_CRACKED
+}
+
+/** True for anything that occupies a cell without being a mergeable block. */
+export function isSolidValue(value: number): boolean {
+  return value < CELL_EMPTY
 }
 
 export interface Pos {
@@ -51,6 +65,8 @@ export interface ModeConfig {
   maxLevelBonus: number
   /** Whether obstacles spawn during play. */
   obstacles: boolean
+  /** Battle mode: a sealed arena with a Pac-Man hunting the board. */
+  battle: boolean
   /** Level NUMBER that wins the run (endless: 10 => the 89-point block). */
   winAtLevel: number | null
 }
@@ -58,6 +74,58 @@ export interface ModeConfig {
 export interface StepUnlockFallback {
   enabled: boolean
   stepsPerLevel: number
+}
+
+/**
+ * Battle-mode arena and boss parameters.
+ *
+ * The board is split into three horizontal bands by `wallRow`:
+ *
+ *   rows 0 .. wallRow-1    the cage: holds the boss's food, no placement allowed
+ *   row  wallRow           an indestructible wall, pierced by one gap at `gapX`
+ *   rows wallRow+1 ..      the playable field the player defends
+ *
+ * Geometry lives here rather than in code so the arena can be reshaped without
+ * touching the rules.
+ */
+export interface BattleConfig {
+  wallRow: number
+  /** The single opening in the wall; also where the boss leaves the cage. */
+  gapX: number
+  /** Level of the blocks stacked in the cage. */
+  cageBlockLevel: number
+  cageBlockCount: number
+  /** Where the boss starts; always inside the cage. */
+  start: { x: number; y: number }
+  /** Starting hit points. */
+  startHp: number
+  /** Action bar gained per placement, as a fraction of a full bar. */
+  actionPerPlacement: number
+  /**
+   * Fraction of a full bar removed by each merge once the boss has left the
+   * cage. The player's only way to slow it down.
+   */
+  mergeBarDrain: number
+  /** HP lost per point of score in a damaging merge. */
+  damagePerScore: number
+  /** HP gained per point of score of an eaten block. */
+  healPerScore: number
+  /** Minimum level a merge must consume before it hurts the boss. */
+  damageFromLevel: number
+}
+
+/** Where the boss is in its hunt. */
+export type PacManPhase = 'cage' | 'exit' | 'board'
+
+export interface PacManState {
+  x: number
+  y: number
+  hp: number
+  /** Highest hp reached this run; the hp bar is drawn relative to it. */
+  maxHp: number
+  /** Action bar, 0..1. Fills as the player places; acting resets it to 0. */
+  bar: number
+  phase: PacManPhase
 }
 
 export interface Tuning {
@@ -82,6 +150,7 @@ export interface Tuning {
     /** A max-level merge destroys whatever it touches in a single hit. */
     breakOutrightAtMaxLevel: boolean
   }
+  battle: BattleConfig
   history: { limit: number }
   theme: { defaultId: string }
   fx: { particleDensity: ParticleDensity }
@@ -121,7 +190,13 @@ export interface CascadeStep {
 }
 
 /** Events produced by an automatic chain. */
-export type CascadeOwnedEvent = 'merged' | 'maxCleared' | 'obstacleHit' | 'obstacleCleared'
+export type CascadeOwnedEvent =
+  | 'merged'
+  | 'maxCleared'
+  | 'obstacleHit'
+  | 'obstacleCleared'
+  /** A chain link wounded the boss, so its burst belongs to that link. */
+  | 'pacmanHurt'
 
 export type InvalidReason =
   | 'game-over'
@@ -131,6 +206,8 @@ export type InvalidReason =
   | 'no-next'
   | 'out-of-bounds'
   | 'cell-occupied'
+  /** Inside the cage, inside the wall, or in the wall's gap: never placeable. */
+  | 'sealed-zone'
   | 'no-history'
 
 export type GameEvent =
@@ -168,6 +245,23 @@ export type GameEvent =
   | { type: 'obstacleHit'; x: number; y: number }
   /** An obstacle was destroyed. The bonus is paid only on this event. */
   | { type: 'obstacleCleared'; x: number; y: number; bonus: number }
+  /** The boss left the cage for the wall gap. */
+  | { type: 'pacmanExited'; x: number; y: number }
+  /** The boss ate a block and healed by its score value. */
+  | {
+      type: 'pacmanAte'
+      x: number
+      y: number
+      level: number
+      heal: number
+      hp: number
+      /** True while it was still eating its way out of the cage. */
+      fromCage: boolean
+    }
+  /** A merge (consuming a block of at least `damageFromLevel`) wounded the boss. */
+  | { type: 'pacmanHurt'; x: number; y: number; amount: number; hp: number }
+  /** The boss's hp hit zero: the run is won. */
+  | { type: 'pacmanDefeated'; x: number; y: number; hp: number; score: number }
   | { type: 'obstacleSpawned'; x: number; y: number }
   | { type: 'invalid'; reason: InvalidReason }
   /**
@@ -205,5 +299,7 @@ export interface GameSnapshot {
   hasWon: boolean
   gameOver: boolean
   pendingWin: { level: number; score: number } | null
+  /** Null in every mode except battle. */
+  pacman: PacManState | null
   rngState: number
 }

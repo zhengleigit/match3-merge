@@ -1,4 +1,5 @@
 import type { GameSnapshot } from './types'
+import type { PacManPhase } from './types'
 import { writeJson, type StorageAdapter } from './settings'
 
 /**
@@ -67,6 +68,18 @@ function parseSnapshot(raw: unknown): GameSnapshot | null {
       }
     : null
 
+  // Older saves predate battle mode, so a missing field means "no boss".
+  const pacman = isRecord(raw.pacman)
+    ? {
+        x: finiteIntOr(raw.pacman.x, 0),
+        y: finiteIntOr(raw.pacman.y, 0),
+        hp: Math.max(0, finiteIntOr(raw.pacman.hp, 0)),
+        maxHp: Math.max(1, finiteIntOr(raw.pacman.maxHp, 1)),
+        bar: clamp01(raw.pacman.bar),
+        phase: parsePhase(raw.pacman.phase)
+      }
+    : null
+
   return {
     cells: cells as number[],
     buffer,
@@ -77,8 +90,19 @@ function parseSnapshot(raw: unknown): GameSnapshot | null {
     hasWon: raw.hasWon === true,
     gameOver: raw.gameOver === true,
     pendingWin,
+    pacman,
     rngState: finiteIntOr(raw.rngState, 1)
   }
+}
+
+/** Unknown phases fall back to the cage, which is the safe starting state. */
+function parsePhase(value: unknown): PacManPhase {
+  return value === 'exit' || value === 'board' ? value : 'cage'
+}
+
+function clamp01(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 0
+  return Math.min(1, Math.max(0, value))
 }
 
 /**

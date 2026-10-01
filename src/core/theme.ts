@@ -21,6 +21,8 @@ export const SLOT = {
   obstacle: 'obstacle',
   /** Obstacle that already took a hit; falls back to `obstacle` when absent. */
   obstacleCracked: 'obstacle.cracked',
+  /** Indestructible wall (battle mode). */
+  wall: 'wall',
   slotBuffer: 'slot.buffer',
   slotNext: 'slot.next',
   slotCellFrame: 'slot.cellFrame',
@@ -35,7 +37,7 @@ export function soundSlot(id: string): string {
   return `sfx.${id}`
 }
 
-const KNOWN_SLOT = /^(?:block\.level(?:10|[1-9])|page\.background|board\.background|home\.background|obstacle(?:\.cracked)?|slot\.(?:buffer|next|cellFrame|highlight)|sfx\.[A-Za-z]+)$/
+const KNOWN_SLOT = /^(?:block\.level(?:10|[1-9])|page\.background|board\.background|home\.background|obstacle(?:\.cracked)?|wall|slot\.(?:buffer|next|cellFrame|highlight)|sfx\.[A-Za-z]+)$/
 
 export function isKnownSlot(slot: string): boolean {
   return KNOWN_SLOT.test(slot)

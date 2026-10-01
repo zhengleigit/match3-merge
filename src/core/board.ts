@@ -2,6 +2,7 @@ import {
   CELL_EMPTY,
   CELL_OBSTACLE,
   CELL_OBSTACLE_CRACKED,
+  CELL_WALL,
   isObstacleValue,
   type Pos
 } from './types'
@@ -10,7 +11,7 @@ import {
  * The board grid.
  *
  * Cell values: `CELL_EMPTY` (0), `CELL_OBSTACLE` (-1), `CELL_OBSTACLE_CRACKED`
- * (-2), or a positive block level (1..maxLevel).
+ * (-2), `CELL_WALL` (-3), or a positive block level (1..maxLevel).
  */
 
 /**
@@ -70,6 +71,31 @@ export class Board {
     return this.inBounds(x, y) && this.get(x, y) === CELL_OBSTACLE_CRACKED
   }
 
+  /** Indestructible wall. Never counts towards obstacle damage. */
+  isWall(x: number, y: number): boolean {
+    return this.inBounds(x, y) && this.get(x, y) === CELL_WALL
+  }
+
+  /**
+   * Blocks in a horizontal band of rows, inclusive.
+   *
+   * Battle mode needs "are there any blocks left in the playable field?", which
+   * spans rows below the wall; the whole-board counts would include the food
+   * sealed in the cage.
+   */
+  countBlocksInRows(fromY: number, toY: number): number {
+    let n = 0
+    const y0 = Math.max(0, fromY)
+    const y1 = Math.min(this.height - 1, toY)
+    for (let y = y0; y <= y1; y++) {
+      const base = y * this.width
+      for (let x = 0; x < this.width; x++) {
+        if (this.cells[base + x] > CELL_EMPTY) n++
+      }
+    }
+    return n
+  }
+
   /** Orthogonal neighbours that are inside the board. */
   neighbors(x: number, y: number): Pos[] {
     const out: Pos[] = []
@@ -115,6 +141,25 @@ export class Board {
       if (isObstacleValue(this.cells[i])) n++
     }
     return n
+  }
+
+  /**
+   * True when some cell in the row band (inclusive) is a placeable empty cell.
+   *
+   * "Is the board full?" cannot be answered board-wide in battle mode: the cage
+   * is walled off and the wall row is solid, so those cells are never usable and
+   * would make a fresh board look full.
+   */
+  hasFreeCellInRows(fromY: number, toY: number): boolean {
+    const y0 = Math.max(0, fromY)
+    const y1 = Math.min(this.height - 1, toY)
+    for (let y = y0; y <= y1; y++) {
+      const base = y * this.width
+      for (let x = 0; x < this.width; x++) {
+        if (this.cells[base + x] === CELL_EMPTY) return true
+      }
+    }
+    return false
   }
 
   /**

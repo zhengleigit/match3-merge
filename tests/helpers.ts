@@ -1,7 +1,7 @@
 import { loadModes, loadTuning } from '../src/core/data'
 import { Game } from '../src/core/game'
-import { CELL_OBSTACLE, CELL_OBSTACLE_CRACKED } from '../src/core/types'
-import type { GameSnapshot, ModeConfig, Pos, Tuning } from '../src/core/types'
+import { CELL_OBSTACLE, CELL_OBSTACLE_CRACKED, CELL_WALL } from '../src/core/types'
+import type { GameSnapshot, ModeConfig, PacManState, Pos, Tuning } from '../src/core/types'
 
 /** Tuning cloned from the real data file, optionally mutated for a test. */
 export function makeTuning(mutate?: (tuning: Tuning) => void): Tuning {
@@ -45,6 +45,8 @@ export interface CraftSpec {
   obstacles?: Pos[]
   /** Obstacles that have already taken one hit. */
   crackedObstacles?: Pos[]
+  /** Indestructible wall cells (battle mode). */
+  walls?: Pos[]
   buffer?: number[]
   next?: number
   score?: number
@@ -52,6 +54,8 @@ export interface CraftSpec {
   maxReachedLevel?: number
   hasWon?: boolean
   gameOver?: boolean
+  pacman?: PacManState | null
+  rngState?: number
 }
 
 /**
@@ -73,6 +77,9 @@ export function craft(width: number, height: number, spec: CraftSpec): GameSnaps
   for (const spot of spec.crackedObstacles ?? []) {
     cells[spot.y * width + spot.x] = CELL_OBSTACLE_CRACKED
   }
+  for (const spot of spec.walls ?? []) {
+    cells[spot.y * width + spot.x] = CELL_WALL
+  }
 
   return {
     cells,
@@ -84,7 +91,8 @@ export function craft(width: number, height: number, spec: CraftSpec): GameSnaps
     hasWon: spec.hasWon ?? false,
     gameOver: spec.gameOver ?? false,
     pendingWin: null,
-    rngState: 1
+    pacman: spec.pacman ?? null,
+    rngState: spec.rngState ?? 1
   }
 }
 

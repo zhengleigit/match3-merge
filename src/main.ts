@@ -294,11 +294,14 @@ function applyFx(fx: FxDescriptor): void {
 /** Maps a batch of events to effects and plays them. */
 function presentEvents(events: readonly GameEvent[]): void {
   if (events.length === 0) return
+  const boss = game.view().pacman
   applyFx(
     describeEvents(events, {
       density: effectiveDensity(),
       levelHues: fxConfig.levelHues,
-      reducedMotion
+      reducedMotion,
+      // Lets boss effects land on the boss rather than on the merged cells.
+      boss: boss === null ? undefined : { x: boss.x, y: boss.y }
     })
   )
 }
@@ -350,9 +353,17 @@ function syncDialogs(): void {
     return
   }
 
+  // Battle mode is won by defeating the boss, and has no "keep playing" step:
+  // there is nothing left to challenge once it is down.
+  if (mode.battle && state.hasWon && !state.gameOver) {
+    finishRun()
+    hud.showVictory(state.score, progressStore.bestFor(mode.id))
+    return
+  }
+
   if (state.gameOver) {
     finishRun()
-    hud.showGameOver(state.score, progressStore.bestFor(mode.id), state.canUndo)
+    hud.showGameOver(state.score, progressStore.bestFor(mode.id), state.canUndo, mode.battle)
   }
 }
 
@@ -824,6 +835,7 @@ function frame(nowMs: number): void {
     overrideCells: cascadePlayer.overrideCells(),
     leaderboard: leaderboardRows,
     shakeOffset: { x: shake.x, y: shake.y },
+    pacman: state.pacman,
     timeMs: nowMs,
     reducedMotion
   }

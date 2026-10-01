@@ -41,6 +41,37 @@ export function loadTuning(): Tuning {
     fail('obstacles.hits must be 1 (breaks at once) or 2 (cracks, then breaks)')
   }
 
+  const battle = tuning.battle
+  if (battle.wallRow < 1) {
+    fail('battle.wallRow must leave at least one cage row above the wall')
+  }
+  // The wall, the cage and the playable field all have to exist, otherwise the
+  // arena silently degenerates into a mode with nowhere to build.
+  if (battle.wallRow >= tuning.board.height - 1) {
+    fail('battle.wallRow must leave at least one playable row below the wall')
+  }
+  if (battle.gapX < 0 || battle.gapX >= tuning.board.width) {
+    fail('battle.gapX must be a column on the board')
+  }
+  if (battle.start.y >= battle.wallRow) {
+    fail('battle.start must be inside the cage (above the wall)')
+  }
+  if (battle.cageBlockCount < 1) {
+    fail('battle.cageBlockCount must be at least 1')
+  }
+  if (battle.startHp < 1) {
+    fail('battle.startHp must be at least 1')
+  }
+  if (battle.actionPerPlacement <= 0) {
+    fail('battle.actionPerPlacement must be positive')
+  }
+  if (battle.mergeBarDrain < 0) {
+    fail('battle.mergeBarDrain must not be negative')
+  }
+  if (battle.damageFromLevel < 1) {
+    fail('battle.damageFromLevel must be at least 1')
+  }
+
   return tuning
 }
 
@@ -72,6 +103,14 @@ export function loadModes(): ModeConfig[] {
           `mode "${mode.id}" winAtLevel ${mode.winAtLevel} is outside 1..${mode.scoreByLevel.length}`
         )
       }
+    }
+    if (mode.battle === true && mode.winAtLevel !== null) {
+      // Battle mode is won by the boss's hp hitting zero; a level win would make
+      // that unreachable and leave two competing win conditions.
+      fail(`mode "${mode.id}" is a battle mode, so winAtLevel must be null`)
+    }
+    if (mode.battle === true && mode.obstacles) {
+      fail(`mode "${mode.id}" cannot be both a battle and an obstacle mode`)
     }
   }
 

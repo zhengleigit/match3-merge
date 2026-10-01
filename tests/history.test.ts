@@ -48,6 +48,7 @@ describe('History stack', () => {
     hasWon: false,
     gameOver: false,
     pendingWin: null,
+    pacman: null,
     rngState: 1
   })
 

@@ -45,6 +45,7 @@ function snapshot(overrides: Partial<GameSnapshot> = {}): GameSnapshot {
     hasWon: false,
     gameOver: false,
     pendingWin: null,
+    pacman: null,
     rngState: 12345,
     ...overrides
   }

@@ -9,6 +9,17 @@
       "scoreByLevel": [1, 2, 3, 5, 8],
       "maxLevelBonus": 50,
       "obstacles": false,
+      "battle": false,
+      "winAtLevel": null
+    },
+    {
+      "id": "battle",
+      "name": "战斗模式",
+      "description": "每次落子它行动条 +50%，满了就行动：先吃光笼子里的 8 个 5 级方块（每个给它加 8 血），再走出缺口吃棋盘上的方块。合成 3 级以上的方块会扣它血；它血空你赢，可玩区被吃光你输。",
+      "scoreByLevel": [1, 2, 3, 5, 8],
+      "maxLevelBonus": 50,
+      "obstacles": false,
+      "battle": true,
       "winAtLevel": null
     },
     {
@@ -18,6 +29,7 @@
       "scoreByLevel": [1, 2, 3, 5, 8],
       "maxLevelBonus": 50,
       "obstacles": true,
+      "battle": false,
       "winAtLevel": null
     },
     {
@@ -27,6 +39,7 @@
       "scoreByLevel": [1, 2, 3, 5, 8, 13, 21, 34, 55, 89],
       "maxLevelBonus": 0,
       "obstacles": false,
+      "battle": false,
       "winAtLevel": 10
     }
   ]

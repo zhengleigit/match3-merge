@@ -79,6 +79,46 @@
       "additive": false,
       "shake": [0.1, 80]
     },
+    "pacmanAte": {
+      "count": 16,
+      "speed": [60, 220],
+      "lifeMs": [220, 480],
+      "size": [2, 5],
+      "gravity": 260,
+      "ring": true,
+      "additive": true,
+      "shake": [0.08, 70]
+    },
+    "pacmanExited": {
+      "count": 22,
+      "speed": [80, 260],
+      "lifeMs": [280, 620],
+      "size": [2, 6],
+      "gravity": 120,
+      "ring": true,
+      "additive": true,
+      "shake": [0.14, 160]
+    },
+    "pacmanHurt": {
+      "count": 20,
+      "speed": [90, 300],
+      "lifeMs": [240, 560],
+      "size": [2, 6],
+      "gravity": 380,
+      "ring": true,
+      "additive": true,
+      "shake": [0.16, 140]
+    },
+    "pacmanDefeated": {
+      "count": 46,
+      "speed": [120, 420],
+      "lifeMs": [420, 900],
+      "size": [3, 8],
+      "gravity": 140,
+      "ring": true,
+      "additive": true,
+      "shake": [0.24, 360]
+    },
     "undo": {
       "count": 12,
       "speed": [40, 130],

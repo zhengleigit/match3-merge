@@ -1,15 +1,26 @@
 import { Board } from './board'
+import {
+  advanceBoss,
+  applyDamage,
+  boardIsCleared,
+  drainActionBar,
+  isSealedCell,
+  mergeDamage,
+  seedArena
+} from './battle'
 import { History, cloneSnapshot } from './history'
-import { resolveCascade, type CascadeOptions } from './merge'
+import { resolveCascade, scoreOfLevel, type CascadeOptions } from './merge'
 import { spawnObstacle } from './obstacles'
 import { Rng, makeSeed } from './rng'
 import { pickSpawnLevel, stepUnlockLevel } from './spawn'
 import {
   CELL_EMPTY,
+  type CascadeStep,
   type GameEvent,
   type GameSnapshot,
   type InvalidReason,
   type ModeConfig,
+  type PacManState,
   type Tuning
 } from './types'
 
@@ -42,6 +53,8 @@ export interface GameView {
   canUndo: boolean
   /** True when no empty cell is left (the losing condition). */
   boardFull: boolean
+  /** Battle mode only; null in every other mode. */
+  pacman: PacManState | null
 }
 
 /**
@@ -71,6 +84,8 @@ export class Game {
   private pendingWin: { level: number; score: number } | null = null
   /** Position of a cascade paused by the win, so "continue" can resume it. */
   private resume: { x: number; y: number; level: number } | null = null
+  /** Battle mode boss; null in every other mode. */
+  private boss: PacManState | null = null
 
   constructor(options: GameOptions) {
     this.mode = options.mode
@@ -79,6 +94,12 @@ export class Game {
     this.rng = new Rng(options.seed ?? makeSeed())
     this.history = new History(options.tuning.history.limit)
     this.buffer = new Array<number>(options.tuning.buffer.slots).fill(CELL_EMPTY)
+
+    if (this.mode.battle) {
+      // The arena is part of the board's initial state, not a turn outcome, so
+      // it is seeded once here and then captured by every snapshot.
+      this.boss = seedArena(this.board, this.tuning.battle, (n) => this.rng.int(n))
+    }
 
     if (options.tuning.next.preSeedAtStart) {
       this.next = this.rollSpawnLevel()
@@ -99,7 +120,23 @@ export class Game {
 
   /** True when the cell can accept a block right now. */
   canPlaceAt(x: number, y: number): boolean {
+    if (this.isSealed(x, y)) return false
     return this.board.isEmpty(x, y)
+  }
+
+  /**
+   * True for cells the player may never place into in battle mode: the cage,
+   * the wall, and the wall's gap (which is the boss's doorway).
+   */
+  private isSealed(x: number, y: number): boolean {
+    if (!this.mode.battle) return false
+    if (!this.board.inBounds(x, y)) return false
+    return isSealedCell(this.tuning.battle, y)
+  }
+
+  /** Copy of the boss state, safe for the view to hold on to. */
+  private bossView(): PacManState | null {
+    return this.boss === null ? null : { ...this.boss }
   }
 
   view(): GameView {
@@ -120,7 +157,8 @@ export class Game {
       gameOver: this.gameOver,
       pendingWin: this.pendingWin === null ? null : { ...this.pendingWin },
       canUndo: this.history.canUndo(),
-      boardFull: !this.board.hasEmptyCell()
+      boardFull: this.isBoardFull(),
+      pacman: this.bossView()
     }
   }
 
@@ -221,9 +259,19 @@ export class Game {
       this.maxReachedLevel = cascade.maxCreatedLevel
     }
 
-    // Step bookkeeping happens after the chain so obstacles reflect the result.
     this.steps++
-    events.push(...this.maybeSpawnObstacle())
+
+    if (this.boss !== null) {
+      // Battle resolves in a fixed order, and the order matters: the merge's
+      // damage lands first, so a killing blow stops the boss from taking the
+      // bite that this very placement would otherwise have earned it.
+      const aftermath = this.resolveBattleTurn(cascade.steps)
+      events.push(...aftermath.events)
+      if (aftermath.over) return events
+    } else {
+      // Step bookkeeping happens after the chain so obstacles reflect the result.
+      events.push(...this.maybeSpawnObstacle())
+    }
 
     if (cascade.stoppedForWin && cascade.resume !== null) {
       // Claim the win exactly once per run; the dialog pauses the cascade.
@@ -238,9 +286,85 @@ export class Game {
     return events
   }
 
+  /**
+   * The boss half of a battle turn: merge damage, then the action bar.
+   *
+   * Damage is applied per chain link rather than as one lump, so the view can
+   * burst particles on the step that actually caused the wound.
+   */
+  private resolveBattleTurn(steps: readonly CascadeStep[]): {
+    events: GameEvent[]
+    over: boolean
+  } {
+    const config = this.tuning.battle
+    const boss = this.boss
+    if (boss === null) return { events: [], over: false }
+
+    const events: GameEvent[] = []
+    const score = (level: number): number => scoreOfLevel(this.mode.scoreByLevel, level)
+
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i]
+      for (let e = 0; e < step.events.length; e++) {
+        const event = step.events[e]
+        if (event.type !== 'merged' && event.type !== 'maxCleared') continue
+
+        // `merged` reports the level it consumed as `fromLevel`; `maxCleared`
+        // reports it as `level`. Both are the level of the blocks destroyed,
+        // which is what decides whether this hit was strong enough to wound.
+        const consumedLevel = event.type === 'merged' ? event.fromLevel : event.level
+        const damage = mergeDamage(config, consumedLevel, event.consumed, score)
+        if (!damage.dealt) continue
+
+        const lethal = applyDamage(boss, damage.amount)
+        const wound: GameEvent = {
+          type: 'pacmanHurt',
+          x: boss.x,
+          y: boss.y,
+          amount: damage.amount,
+          hp: boss.hp
+        }
+        // Attaching it to the chain step is what sequences the effect with the
+        // merge that caused it rather than firing it all at once.
+        ;(step.events as GameEvent[]).push(wound)
+        events.push(wound)
+
+        if (lethal) {
+          this.hasWon = true
+          const defeat: GameEvent = {
+            type: 'pacmanDefeated',
+            x: boss.x,
+            y: boss.y,
+            hp: boss.hp,
+            score: this.score
+          }
+          events.push(defeat)
+          return { events, over: true }
+        }
+
+        // A merge also knocks the boss back, once it is out of the cage.
+        drainActionBar(config, boss)
+      }
+    }
+
+    const turn = advanceBoss(this.board, config, boss, score, (n) => this.rng.int(n))
+    events.push(...turn.events)
+
+    if (boardIsCleared(this.board, config)) {
+      this.gameOver = true
+      events.push({ type: 'gameOver', score: this.score })
+      return { events, over: true }
+    }
+
+    return { events, over: false }
+  }
+
   /** Returns the rejection event for an illegal target cell, or null when fine. */
   private checkTarget(x: number, y: number): GameEvent | null {
     if (!this.board.inBounds(x, y)) return this.invalid('out-of-bounds')
+    // Sealed cells are rejected before the occupancy check so the player is told
+    // "you can't build here" rather than "that cell is taken".
+    if (this.isSealed(x, y)) return this.invalid('sealed-zone')
     if (!this.board.isEmpty(x, y)) return this.invalid('cell-occupied')
     return null
   }
@@ -303,6 +427,11 @@ export class Game {
     this.pendingWin = null
     this.resume = null
 
+    // A fresh arena: the cage is restocked and the boss is back at its start.
+    this.boss = this.mode.battle
+      ? seedArena(this.board, this.tuning.battle, (n) => this.rng.int(n))
+      : null
+
     if (this.tuning.next.preSeedAtStart) {
       this.next = this.rollSpawnLevel()
     }
@@ -325,6 +454,7 @@ export class Game {
       hasWon: this.hasWon,
       gameOver: this.gameOver,
       pendingWin: this.pendingWin === null ? null : { ...this.pendingWin },
+      pacman: this.boss === null ? null : { ...this.boss },
       rngState: this.rng.getState()
     }
   }
@@ -343,6 +473,7 @@ export class Game {
     // A paused cascade cannot survive a rewind: the win flag is restored above,
     // so a replayed placement resolves normally instead of re-triggering a win.
     this.resume = null
+    this.boss = copy.pacman
     this.rng.setState(copy.rngState)
   }
 
@@ -403,8 +534,24 @@ export class Game {
     return [{ type: 'obstacleSpawned', x: spot.x, y: spot.y }]
   }
 
+  /**
+   * True when nothing can be placed anywhere any more.
+   *
+   * `spawnObstacle` only drops into empty cells, so in obstacle mode this is
+   * effectively "the board is full". Battle mode needs the narrow definition
+   * instead: its cage starts full and the wall can never be used, so counting
+   * the whole board would report a loss on the very first frame.
+   */
+  private isBoardFull(): boolean {
+    if (!this.mode.battle) return !this.board.hasEmptyCell()
+    return !this.board.hasFreeCellInRows(this.tuning.battle.wallRow + 1, this.board.height - 1)
+  }
+
   private checkGameOver(): GameEvent[] {
-    if (this.board.hasEmptyCell()) return []
+    // Battle mode has its own losing condition (the board running out of
+    // blocks), evaluated inside resolveBattleTurn.
+    if (this.mode.battle) return []
+    if (!this.isBoardFull()) return []
     this.gameOver = true
     return [{ type: 'gameOver', score: this.score }]
   }
